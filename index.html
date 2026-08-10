@@ -1,0 +1,3876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RADHE MATERIAL – Sale Invoice</title>
+
+  <!-- jsPDF — PDF generation library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Supabase JS client — cloud ledger storage -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- html2canvas — renders HTML to a PNG image for bill sharing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <!-- Noto Sans Gujarati — the OS often has no Gujarati font, so the PDF
+       notice is rendered with this web font instead (see buildGujaratiNoticeImage) -->
+  <link id="gujFontLink" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;700&display=swap" />
+
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Palette ── */
+    :root {
+      --blue-dark:   #30364F;
+      --blue-mid:    #4B5773;
+      --blue-light:  #E4E8EC;
+      --blue-border: #ACBAC4;
+      --white:       #ffffff;
+      --gray-text:   #374151;
+      --gray-muted:  #6b7280;
+      --gray-bg:     #eef2f7;   /* cooler, slightly blue-tinted page bg */
+      --shadow-sm:   0 1px 3px rgba(0,0,0,0.07), 0 2px 8px rgba(48,54,79,0.06);
+    }
+
+  <style>
+    /* ── Base ── */
+    body {
+      font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+      background: var(--gray-bg);
+      color: var(--gray-text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--blue-dark);
+      color: var(--white);
+      padding: 0 20px;
+      height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      box-shadow: 0 2px 10px rgba(48,54,79,0.35);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header .logo {
+      width: 58px;
+      height: 58px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    header .logo img            { width: 100%; height: 100%; object-fit: contain; display: none; }
+    header .logo .logo-fallback { font-size: 28px; line-height: 1; color: var(--white); }
+
+    header h1 {
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    /* ── Seller fixed display ── */
+    .seller-info-name {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--blue-dark);
+      margin-bottom: 6px;
+    }
+
+    .seller-info-addr {
+      font-size: 0.82rem;
+      color: var(--gray-muted);
+      line-height: 1.55;
+    }
+
+    /* ── Main layout ── */
+    main {
+      max-width: 1280px;
+      margin: 24px auto;
+      padding: 0 16px 60px;
+    }
+
+    @media (max-width: 640px) {
+      main { margin: 14px auto; padding: 0 12px 48px; }
+    }
+
+    .app-grid {
+      display: grid;
+      grid-template-columns: 1fr 370px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 960px) {
+      .app-grid { grid-template-columns: 1fr; gap: 16px; }
+    }
+
+    .col-invoice {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    /* On desktop the ledger sticks under the header so the client list
+       stays visible while the long invoice form scrolls past it.        */
+    .col-ledger {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: sticky;
+      top: 92px;
+      max-height: calc(100vh - 108px);
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--blue-border) transparent;
+    }
+
+    @media (max-width: 960px) {
+      .col-ledger { position: static; max-height: none; overflow-y: visible; }
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--white);
+      border: 1px solid #d9e6f7;
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-title {
+      font-size: 0.67rem;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--blue-mid);
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--blue-light);
+    }
+
+    /* ── Two-column grid Seller / Client ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 560px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── Form fields ── */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 12px;
+    }
+
+    .field:last-child { margin-bottom: 0; }
+
+    label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--gray-muted);
+      letter-spacing: 0.01em;
+    }
+
+    label .opt { font-weight: 400; font-style: italic; color: #9ca3af; }
+
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      border: 1px solid var(--blue-border);
+      border-radius: 7px;
+      padding: 9px 11px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      color: var(--gray-text);
+      background: var(--white);
+      width: 100%;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    /* Prevent iOS Safari from zooming in on focused inputs (needs ≥ 16px) */
+    @media (max-width: 640px) {
+      input[type="text"],
+      input[type="number"],
+      textarea,
+      select { font-size: 16px; }
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--blue-mid);
+      box-shadow: 0 0 0 3px rgba(75,87,115,0.14);
+    }
+
+    input[readonly] {
+      background: var(--blue-light);
+      color: var(--blue-dark);
+      font-weight: 600;
+      cursor: default;
+    }
+
+    textarea { resize: vertical; min-height: 66px; }
+
+    /* Invoice meta row: number + date side by side */
+    .meta-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .meta-row .field { flex: 1; min-width: 155px; margin-bottom: 0; }
+
+    /* ── Line-items table ── */
+    .items-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    table.items {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    table.items thead tr { background: var(--blue-light); }
+
+    table.items th {
+      padding: 9px 8px;
+      text-align: left;
+      font-size: 0.69rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--blue-dark);
+      border-bottom: 2px solid var(--blue-border);
+      white-space: nowrap;
+    }
+
+    table.items td {
+      padding: 7px 8px;
+      border-bottom: 1px solid #edf1f7;
+      vertical-align: middle;
+    }
+
+    table.items tbody tr:last-child td { border-bottom: none; }
+
+    .col-service { min-width: 140px; position: relative; }
+
+    .desc-dropdown {
+      position: fixed;
+      background: #fff;
+      border: 1.5px solid var(--blue-border);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(48,54,79,0.22);
+      z-index: 99999;
+      padding: 10px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 280px;
+    }
+    .dd-cat-row {
+      display: flex;
+      gap: 8px;
+    }
+    .dd-cat-btn {
+      flex: 1;
+      padding: 12px 8px;
+      background: var(--blue-light);
+      border: 1.5px solid var(--blue-border);
+      border-radius: 9px;
+      text-align: center;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: var(--blue-dark);
+      user-select: none;
+    }
+    .dd-cat-btn:hover { background: var(--blue-dark); color: #fff; border-color: var(--blue-dark); }
+    .dd-cat-count { display: block; font-size: 0.7rem; font-weight: 400; opacity: 0.7; margin-top: 3px; }
+    .dd-back-row { display: flex; align-items: center; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid #e5eaf3; }
+    .dd-back-btn { font-size: 0.78rem; color: var(--blue-dark); cursor: pointer; font-weight: 600; }
+    .dd-back-btn:hover { text-decoration: underline; }
+    .dd-cat-label { font-size: 0.82rem; font-weight: 700; color: var(--blue-dark); letter-spacing: 0.04em; }
+    .desc-dd-grid { display: grid; gap: 4px; }
+    .desc-dd-item {
+      padding: 7px 8px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      white-space: nowrap;
+      color: var(--gray-text);
+      border-radius: 6px;
+      text-align: center;
+      border: 1px solid #e5eaf3;
+      user-select: none;
+    }
+    .desc-dd-item:hover { background: var(--blue-light); color: var(--blue-dark); font-weight: 600; border-color: var(--blue-border); }
+    .col-unit    { width: 62px; }
+    .col-qty     { width: 130px; }
+    .col-rate    { width: 100px; }
+    .col-amount  { width: 110px; }
+    .col-del     { width: 42px; text-align: center; }
+
+    table.items input { margin: 0; padding-left: 7px; padding-right: 7px; }
+
+    .amount-cell {
+      background: var(--blue-light);
+      border-radius: 5px;
+      padding: 7px 9px;
+      font-weight: 600;
+      color: var(--blue-dark);
+      white-space: nowrap;
+      font-size: 0.84rem;
+    }
+
+    /* Line-item delete button — 36 × 36 px tap target */
+    .btn-del-row {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #ef4444;
+      font-size: 1rem;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+
+    .btn-del-row:hover            { background: #fee2e2; }
+    .btn-del-row:disabled         { color: #d1d5db; cursor: default; }
+    .btn-del-row:disabled:hover   { background: none; }
+
+    /* Add Row button */
+    .btn-add-row {
+      margin-top: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      min-height: 40px;
+      border: 1.5px dashed var(--blue-mid);
+      border-radius: 7px;
+      background: none;
+      color: var(--blue-mid);
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-add-row:hover { background: var(--blue-light); }
+
+    /* ── GST row ── */
+    .gst-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .gst-row label { font-size: 0.85rem; font-weight: 600; color: var(--gray-text); }
+    .gst-row select { width: auto; min-width: 90px; }
+
+    /* ── Totals summary panel ── */
+    .totals-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--blue-light);
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .totals-table { border-collapse: collapse; min-width: 260px; }
+
+    @media (max-width: 400px) {
+      .totals-section { justify-content: stretch; }
+      .totals-table   { width: 100%; min-width: 0; }
+    }
+
+    .totals-table td { padding: 5px 8px; font-size: 0.9rem; }
+
+    .totals-table .tot-label {
+      color: var(--gray-muted);
+      text-align: right;
+      padding-right: 20px;
+      white-space: nowrap;
+    }
+
+    .totals-table .tot-value {
+      text-align: right;
+      font-weight: 600;
+      white-space: nowrap;
+      min-width: 120px;
+    }
+
+    .totals-table tr.grand-row td {
+      padding-top: 10px;
+      border-top: 2px solid var(--blue-border);
+    }
+
+    .totals-table .grand-label {
+      text-align: right;
+      padding-right: 20px;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--blue-dark);
+      white-space: nowrap;
+    }
+
+    .totals-table .grand-value {
+      text-align: right;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--blue-dark);
+      white-space: nowrap;
+      background: var(--blue-light);
+      border-radius: 6px;
+      padding: 6px 10px;
+    }
+
+    /* ── Action buttons (Save to Ledger + Download PDF) ── */
+    .btn-save-ledger {
+      width: 100%;
+      padding: 14px;
+      min-height: 50px;
+      background: #16a34a;
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-save-ledger:hover    { background: #15803d; }
+    .btn-save-ledger:disabled { background: #9ca3af; cursor: default; }
+
+    .btn-pdf {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 13px;
+      min-height: 48px;
+      background: var(--blue-dark);
+      color: var(--white);
+      border: none;
+      border-radius: 9px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-pdf:hover    { background: var(--blue-mid); }
+    .btn-pdf:disabled { background: #9ca3af; cursor: default; }
+
+    /* ── CDN status badges ── */
+    .lib-status { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .badge {
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .badge.ok  { background: #d1fae5; color: #065f46; }
+    .badge.err { background: #fee2e2; color: #991b1b; }
+
+    /* ── Lock / PIN screen ── */
+    #lock-screen {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(150deg, #E4E8EC 0%, #eef2f7 60%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 20px;
+    }
+
+    .lock-card {
+      background: var(--white);
+      border: 1px solid #d9e6f7;
+      border-radius: 18px;
+      padding: 40px 36px 32px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 8px 48px rgba(48,54,79,0.16);
+    }
+
+    @media (max-width: 440px) { .lock-card { padding: 32px 22px 28px; } }
+
+    .lock-logo-wrap {
+      width: 70px;
+      height: 70px;
+      border-radius: 14px;
+      background: var(--blue-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      overflow: hidden;
+    }
+
+    .lock-logo-wrap img { width: 100%; height: 100%; object-fit: contain; }
+
+    .lock-card h2 { font-size: 1.25rem; font-weight: 700; color: var(--blue-dark); margin-bottom: 8px; }
+
+    .lock-card p {
+      font-size: 0.84rem;
+      color: var(--gray-muted);
+      line-height: 1.55;
+      margin-bottom: 24px;
+    }
+
+    .lock-card .field { text-align: left; margin-bottom: 16px; }
+
+    .btn-open {
+      width: 100%;
+      padding: 13px;
+      min-height: 50px;
+      background: var(--blue-dark);
+      color: var(--white);
+      border: none;
+      border-radius: 9px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-open:hover { background: var(--blue-mid); }
+
+    .lock-hint {
+      font-size: 0.74rem !important;
+      color: #9ca3af !important;
+      margin-top: 16px !important;
+      margin-bottom: 0 !important;
+    }
+
+    /* ── Ledger panel ── */
+    .ledger-panel { padding: 14px 16px; }
+
+    #ledger-total-bar {
+      display: none;
+      background: #30364F;
+      color: #fff;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+    }
+    #ledger-total-bar .ltb-label { font-weight: 600; letter-spacing: 0.04em; opacity: 0.85; }
+    #ledger-total-bar .ltb-amount { font-size: 1rem; font-weight: 800; }
+
+    .btn-export-csv {
+      width: 100%;
+      margin-top: 10px;
+      padding: 9px 14px;
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1.5px solid #86efac;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn-export-csv:hover { background: #dcfce7; }
+    .btn-print-all {
+      width: 100%;
+      margin-top: 8px;
+      padding: 9px 14px;
+      background: #EEF0F3;
+      color: #30364F;
+      border: 1.5px solid #C7CDD4;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn-print-all:hover { background: #E4E8EC; }
+
+    .client-search-wrap { margin-bottom: 10px; }
+
+    .client-list { display: flex; flex-direction: column; gap: 2px; }
+
+    /* Client rows — 52 px min-height makes them easy to tap on mobile */
+    .client-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 12px;
+      min-height: 52px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.12s, border-color 0.12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .client-item:hover  { background: var(--blue-light); border-color: var(--blue-border); }
+    .client-item.active { background: var(--blue-light); border-color: var(--blue-mid); }
+
+    .ci-name   { font-weight: 600; font-size: 0.88rem; color: var(--gray-text); }
+    .ci-phone  { font-size: 0.74rem; color: var(--gray-muted); margin-top: 2px; }
+    .ci-amount { font-weight: 700; color: var(--blue-dark); font-size: 0.88rem; white-space: nowrap; margin-left: 10px; }
+
+    .ci-right  { display: flex; align-items: center; gap: 6px; margin-left: 10px; }
+    .ci-delete {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--gray-muted);
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .ci-delete:hover { background: #fee2e2; border-color: #fecaca; color: #dc2626; }
+
+    .ledger-empty {
+      text-align: center;
+      padding: 24px 8px;
+      font-size: 0.84rem;
+      color: var(--gray-muted);
+      line-height: 1.55;
+    }
+
+    /* ── Client detail ── */
+    .detail-back {
+      background: none;
+      border: none;
+      color: var(--blue-mid);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 4px 0 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 36px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .detail-back:hover { text-decoration: underline; }
+
+    .detail-name { font-size: 1rem; font-weight: 700; color: var(--blue-dark); }
+    .detail-sub  { font-size: 0.75rem; color: var(--gray-muted); margin-top: 3px; margin-bottom: 12px; }
+
+    table.purchase-tbl { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+
+    table.purchase-tbl th {
+      padding: 6px 7px;
+      font-size: 0.67rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--blue-dark);
+      background: var(--blue-light);
+      border-bottom: 1px solid var(--blue-border);
+      text-align: left;
+    }
+
+    table.purchase-tbl th:last-child { text-align: right; }
+
+    table.purchase-tbl td {
+      padding: 10px 7px;      /* taller rows for easier reading & tapping */
+      border-bottom: 1px solid #eef2f7;
+      color: var(--gray-text);
+    }
+
+    table.purchase-tbl tr:last-child td { border-bottom: none; }
+
+    .ptbl-amt { text-align: right; font-weight: 600; color: var(--blue-dark); white-space: nowrap; }
+
+    .detail-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 7px 0;
+      margin-top: 4px;
+      border-top: 2px solid var(--blue-border);
+      font-weight: 700;
+      font-size: 0.92rem;
+      color: var(--blue-dark);
+    }
+
+    /* ── Per-purchase Edit / Delete buttons ── */
+    .ptbl-actions { white-space: nowrap; text-align: right; }
+
+    .btn-edit-purch, .btn-del-purch {
+      border: none;
+      border-radius: 5px;
+      padding: 6px 10px;
+      min-height: 32px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-edit-purch       { background: var(--blue-light); color: var(--blue-dark); margin-right: 4px; }
+    .btn-edit-purch:hover { background: var(--blue-border); }
+    .btn-del-purch          { background: #fee2e2; color: #b91c1c; }
+    .btn-del-purch:hover    { background: #fecaca; }
+    .btn-reprint-purch      { background: #eff6ff; color: #1d4ed8; margin-right: 4px; }
+    .btn-reprint-purch:hover{ background: #E4E8EC; }
+
+    .btn-del-purch:disabled,
+    .btn-edit-purch:disabled { opacity: 0.45; cursor: default; }
+
+    /* Inline edit cells */
+    .edit-cell input {
+      width: 100%;
+      font-size: 0.82rem;
+      padding: 5px 6px;
+      border: 1px solid var(--blue-border);
+      border-radius: 5px;
+      font-family: inherit;
+    }
+
+    .edit-cell input:focus {
+      outline: none;
+      border-color: var(--blue-mid);
+      box-shadow: 0 0 0 2px rgba(75,87,115,0.13);
+    }
+
+    .btn-save-edit, .btn-cancel-edit {
+      border: none;
+      border-radius: 5px;
+      padding: 6px 10px;
+      min-height: 32px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-save-edit          { background: #16a34a; color: #fff; margin-right: 4px; }
+    .btn-save-edit:hover    { background: #15803d; }
+    .btn-save-edit:disabled { opacity: 0.45; cursor: default; }
+    .btn-cancel-edit        { background: #e5e7eb; color: var(--gray-text); }
+    .btn-cancel-edit:hover  { background: #d1d5db; }
+
+    /* Clear Payment button */
+    /* ── Billing summary: 3 stat blocks ── */
+    .billing-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      padding: 12px 0 14px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--blue-light);
+    }
+
+    .billing-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 3px;
+      padding: 8px 4px;
+      border-radius: 8px;
+      background: var(--gray-bg);
+    }
+
+    .bs-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gray-muted);
+    }
+
+    .bs-amount {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--blue-dark);
+      white-space: nowrap;
+    }
+
+    .bs-amount.paid      { color: #16a34a; }
+    .bs-amount.remaining { color: #dc2626; }
+    .bs-amount.settled   { color: #16a34a; } /* remaining = 0 */
+
+    /* ── Record payment ── */
+    .payment-section-title {
+      font-size: 0.67rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--blue-mid);
+      margin-bottom: 7px;
+    }
+
+    .payment-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .payment-input-row input { flex: 1; min-width: 0; }
+
+    .btn-record {
+      flex-shrink: 0;
+      padding: 9px 14px;
+      min-height: 42px;
+      background: #16a34a;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-record:hover    { background: #15803d; }
+    .btn-record:disabled { background: #9ca3af; cursor: default; }
+
+    /* ── Payment history ── */
+    .payment-hist-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 4px;
+      border-bottom: 1px solid #eef2f7;
+      font-size: 0.82rem;
+      gap: 6px;
+    }
+
+    .payment-hist-item:last-child { border-bottom: none; }
+
+    .phi-left  { display: flex; flex-direction: column; gap: 1px; }
+    .phi-date  { font-size: 0.72rem; color: var(--gray-muted); }
+    .phi-amt   { font-weight: 600; color: #16a34a; }
+
+    .btn-del-payment {
+      flex-shrink: 0;
+      border: none;
+      background: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 0.7rem;
+      padding: 4px 6px;
+      border-radius: 4px;
+      opacity: 0.55;
+      transition: opacity 0.12s, background 0.12s;
+      min-height: 28px;
+      white-space: nowrap;
+    }
+
+    .btn-del-payment:hover    { opacity: 1; background: #fee2e2; }
+    .btn-del-payment:disabled { opacity: 0.3; cursor: default; }
+
+    .phi-actions {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .btn-receipt {
+      flex-shrink: 0;
+      border: 1px solid var(--blue-border);
+      background: var(--blue-light);
+      color: var(--blue-dark);
+      cursor: pointer;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 4px 7px;
+      border-radius: 4px;
+      transition: background 0.12s, border-color 0.12s;
+      min-height: 28px;
+      white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-receipt:hover    { background: var(--blue-border); border-color: var(--blue-mid); }
+    .btn-receipt:disabled { opacity: 0.4; cursor: default; }
+
+    .btn-pay-purch {
+      padding: 3px 8px;
+      border: none;
+      border-radius: 5px;
+      background: #16a34a;
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-pay-purch:hover    { background: #15803d; }
+    .btn-pay-purch:disabled { background: #9ca3af; cursor: default; }
+
+    /* ── PDF preview modal ── */
+    #pdf-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .pdf-modal {
+      background: var(--white);
+      border-radius: 14px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+      width: 100%;
+      max-width: 740px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .pdf-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 18px;
+      background: var(--blue-dark);
+      color: var(--white);
+      flex-shrink: 0;
+    }
+
+    .pdf-modal-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pdf-modal-close {
+      background: none;
+      border: none;
+      color: var(--white);
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 2px;
+      opacity: 0.75;
+      flex-shrink: 0;
+      margin-left: 12px;
+      transition: opacity 0.15s;
+    }
+
+    .pdf-modal-close:hover { opacity: 1; }
+
+    .pdf-modal-body {
+      flex: 1;
+      overflow: hidden;
+      background: #e5e7eb;
+      min-height: 260px;
+      position: relative;
+    }
+
+    .pdf-iframe {
+      width: 100%;
+      height: 100%;
+      min-height: 440px;
+      border: none;
+      display: block;
+    }
+
+    @media (max-width: 640px) {
+      .pdf-iframe { min-height: 280px; }
+    }
+
+    .pdf-modal-footer {
+      display: flex;
+      gap: 10px;
+      padding: 14px 18px;
+      border-top: 1px solid var(--blue-light);
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 480px) {
+      .pdf-modal-footer { flex-direction: column; }
+    }
+
+    .btn-modal-download {
+      flex: 1;
+      padding: 12px 10px;
+      min-height: 46px;
+      background: var(--blue-dark);
+      color: var(--white);
+      border: none;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-modal-download:hover { background: var(--blue-mid); }
+
+    .btn-modal-whatsapp {
+      flex: 1;
+      padding: 12px 10px;
+      min-height: 46px;
+      background: #25d366;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+
+    .btn-modal-whatsapp:hover { background: #128c7e; }
+
+    .btn-modal-share {
+      flex: 1;
+      padding: 12px 10px;
+      min-height: 46px;
+      background: var(--blue-mid);
+      color: var(--white);
+      border: none;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-modal-share:hover    { background: #1d4ed8; }
+    .btn-modal-share:disabled { background: #9ca3af; cursor: default; }
+
+    /* ── Purchases subsection label ── */
+    .purchases-section-title {
+      font-size: 0.67rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--blue-mid);
+      margin: 14px 0 7px;
+    }
+    .purchases-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 14px 0 7px;
+    }
+    .purchases-section-header .purchases-section-title { margin: 0; }
+    .btn-statement {
+      background: #30364F;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 11px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      letter-spacing: 0.03em;
+      transition: background 0.15s;
+    }
+    .btn-statement:hover { background: #122952; }
+
+    /* ── Statement date-picker modal ── */
+    #stmt-date-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      z-index: 100000; display: flex; align-items: center; justify-content: center;
+    }
+    .sdm-box {
+      background: #fff; border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.22);
+      width: 340px; max-width: 95vw; overflow: hidden;
+    }
+    .sdm-header {
+      background: #30364F; color: #fff; padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-weight: 700; font-size: 0.95rem;
+    }
+    .sdm-close {
+      background: none; border: none; color: #fff; font-size: 1.3rem;
+      cursor: pointer; line-height: 1; padding: 0 4px;
+    }
+    .sdm-body { padding: 20px 18px; }
+    .sdm-hint { font-size: 0.78rem; color: #6b7280; margin-bottom: 14px; }
+    .sdm-row { margin-bottom: 14px; }
+    .sdm-row label {
+      display: block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #30364F; margin-bottom: 5px;
+    }
+    .sdm-row input[type="date"] {
+      width: 100%; padding: 9px 11px; border: 1.5px solid #C7CDD4;
+      border-radius: 8px; font-size: 0.9rem; color: #30364F;
+      box-sizing: border-box; outline: none;
+    }
+    .sdm-row input[type="date"]:focus { border-color: #30364F; }
+    .sdm-footer {
+      display: flex; gap: 10px; padding: 0 18px 18px;
+    }
+    .sdm-cancel {
+      flex: 1; padding: 10px; border: 1.5px solid #C7CDD4; border-radius: 8px;
+      background: #fff; color: #6b7280; font-weight: 600; cursor: pointer; font-size: 0.88rem;
+    }
+    .sdm-generate {
+      flex: 2; padding: 10px; border: none; border-radius: 8px;
+      background: #30364F; color: #fff; font-weight: 700; cursor: pointer; font-size: 0.88rem;
+      transition: background 0.15s;
+    }
+    .sdm-generate:hover { background: #122952; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="logo">
+      <img id="logo-img" src="https://i.ibb.co/TBZ8VV4J/Whats-App-Image-2026-07-29-at-00-22-47.jpg" alt="RADHE MATERIAL" />
+      <span class="logo-fallback" id="logo-fallback">&#x1F4CB;</span>
+    </div>
+    <h1>SALE INVOICE</h1>
+  </header>
+
+  <!-- ── Lock screen — covers everything until code is entered ── -->
+  <div id="lock-screen">
+    <div class="lock-card">
+      <div class="lock-logo-wrap">
+        <img src="https://i.ibb.co/TBZ8VV4J/Whats-App-Image-2026-07-29-at-00-22-47.jpg" alt="Logo" />
+      </div>
+      <h2>GST Invoice Generator</h2>
+      <p>Enter your 4-digit PIN to open your workspace.</p>
+      <div class="field">
+        <label for="code-input">4-Digit PIN</label>
+        <input type="text" id="code-input" placeholder="••••"
+               maxlength="4" inputmode="numeric" pattern="[0-9]{4}"
+               autocomplete="off" autocorrect="off" spellcheck="false"
+               style="letter-spacing:0.3em; font-size:1.4rem; text-align:center;" />
+      </div>
+      <button class="btn-open" id="btn-open" type="button">Open My Workspace</button>
+      <p class="lock-hint">&#128274; The code is the only lock — keep it private.</p>
+    </div>
+  </div>
+
+  <!-- ── Main app — hidden until workspace code is entered ── -->
+  <main id="main-app" style="display:none;">
+  <div class="app-grid">
+
+  <!-- ════════════ LEFT: Invoice form ════════════ -->
+  <div class="col-invoice">
+
+    <!-- 1. Invoice meta: number + date -->
+    <div class="card">
+      <div class="card-title">Invoice Details</div>
+      <div class="meta-row">
+        <div class="field">
+          <label>Invoice Number</label>
+          <!-- Read-only; JS fills this from the stored counter -->
+          <input type="text" id="inv-number" readonly />
+        </div>
+        <div class="field">
+          <label>Invoice Date <span class="opt">(DD/MM/YYYY)</span></label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="text" id="inv-date" placeholder="DD/MM/YYYY" maxlength="10" style="flex:1;" />
+            <input type="date" id="inv-date-picker" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" tabindex="-1" />
+            <button type="button" id="inv-date-cal-btn" title="Pick date"
+              style="padding:0 11px;height:42px;border:1.5px solid #C7CDD4;border-radius:8px;background:#EEF0F3;cursor:pointer;font-size:1.1rem;color:#30364F;flex-shrink:0;">
+              &#128197;
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Seller + Client details (two columns on desktop) -->
+    <div class="two-col">
+
+      <!-- Seller — fixed, not editable -->
+      <div class="card">
+        <div class="card-title">Seller</div>
+        <div class="seller-info-name">RADHE MATERIAL</div>
+        <div class="seller-info-addr">P-775, NEW GIDC, KATARGAM, SURAT, PIN: 395004</div>
+      </div>
+
+      <!-- Client -->
+      <div class="card">
+        <div class="card-title">Client Details</div>
+        <div class="field">
+          <label>Client Name</label>
+          <input type="text" id="client-name" placeholder="e.g. Ramesh Traders" list="client-name-list" autocomplete="off" />
+          <datalist id="client-name-list"></datalist>
+        </div>
+        <div class="field">
+          <label>Phone Number <span class="opt">(unique client ID)</span></label>
+          <input type="text" id="client-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" />
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 3. Line items -->
+    <div class="card">
+      <div class="card-title">Line Items</div>
+      <div class="items-wrap">
+        <table class="items" id="items-table">
+          <thead>
+            <tr>
+              <th class="col-service">Description</th>
+              <th class="col-unit">Unit</th>
+              <th class="col-qty">Qty</th>
+              <th class="col-rate">Rate (&#8377;)</th>
+              <th class="col-amount">Amount (&#8377;)</th>
+              <th class="col-del"></th>
+            </tr>
+          </thead>
+          <tbody id="items-body">
+            <!-- rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+      <button class="btn-add-row" id="btn-add-row" type="button">&#43; Add Row</button>
+    </div>
+
+    <!-- 4. Actions: Save to Ledger + Download PDF -->
+    <div class="card" style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn-save-ledger" id="btn-save-ledger" type="button">
+        &#8679; Save to Ledger
+      </button>
+      <button class="btn-pdf" id="btn-pdf" type="button">
+        &#8595; Download PDF Invoice
+      </button>
+    </div>
+
+  </div><!-- /col-invoice -->
+
+  <!-- ════════════ RIGHT: Ledger panel ════════════ -->
+  <div class="col-ledger">
+    <div class="card ledger-panel">
+      <div class="card-title">Clients &amp; Outstanding</div>
+
+      <!-- Total outstanding across all clients -->
+      <div id="ledger-total-bar">
+        <span class="ltb-label">Total Outstanding</span>
+        <span class="ltb-amount" id="ledger-total-amount">&#8377;0.00</span>
+      </div>
+
+      <!-- Search box -->
+      <div class="client-search-wrap" id="client-search-wrap">
+        <input type="text" id="client-search"
+               placeholder="Search by name or phone…"
+               autocomplete="off" />
+      </div>
+
+      <!-- Flat client list -->
+      <div class="client-list" id="client-list">
+        <div class="ledger-empty">Enter your workspace code to load clients.</div>
+      </div>
+
+      <!-- Client detail (shown when a client is selected) -->
+      <div id="client-detail" style="display:none;"></div>
+
+      <!-- Export backup -->
+      <button class="btn-export-csv" id="btn-export-csv" style="display:none;">&#8595;&nbsp; Export Backup (CSV)</button>
+      <button class="btn-print-all"  id="btn-print-all"  style="display:none;">&#128438;&nbsp; Print All Clients</button>
+    </div>
+  </div><!-- /col-ledger -->
+
+  </div><!-- /app-grid -->
+  </main>
+
+  <script>
+    // ─────────────────────────────────────────────
+    // Supabase — credentials + client
+    // ─────────────────────────────────────────────
+    const SUPABASE_URL      = 'https://ocqlrzpxinwborfckzlq.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jcWxyenB4aW53Ym9yZmNremxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyODkxOTQsImV4cCI6MjEwMDg2NTE5NH0.1ioSdMusgTybTQ16PWjhH9bOtKSjrdryd5T_MdgDSCc';
+
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Active workspace code — set after the user enters their secret code.
+    // Every Supabase read/write filters rows by this value.
+    let workspaceCode = null;
+
+    // Pre-defined product catalogue for description autocomplete
+    const PRODUCT_CATEGORIES = {
+      BEADS: (function () {
+        const types = ['ROSEGOLD', 'SILVER', 'RABDI', 'GOLDEN', 'MILKY', 'BLACK', 'COLOR'];
+        const sizes = ['1.7 MM', '2 MM', '2.5 MM', '3.8 MM'];
+        const list = [];
+        types.forEach(function (t) { sizes.forEach(function (s) { list.push(t + ' ' + s); }); });
+        return list;
+      }()),
+      PAL: ['2 MM PAL', '2.5 MM PAL', '3 MM PAL', '4 MM PAL', '2.5 MM PAL COLOR', '3 MM PAL COLOR'],
+      ZARDOSI: ['4 MM ZARDOSI', '6 MM ZARDOSI', '8 MM ZARDOSI', '9 MM ZARDOSI', '12 MM ZARDOSI']
+    };
+
+    // ─────────────────────────────────────────────
+    // Logo: show image once loaded, else keep emoji
+    // ─────────────────────────────────────────────
+    const logoImg = document.getElementById('logo-img');
+    function showLogo() {
+      logoImg.style.display = 'block';
+      document.getElementById('logo-fallback').style.display = 'none';
+    }
+    if (logoImg.complete && logoImg.naturalWidth > 0) {
+      showLogo();
+    } else {
+      logoImg.addEventListener('load',  showLogo);
+      logoImg.addEventListener('error', function () { /* keep emoji */ });
+    }
+
+    // (CDN libraries loaded via script tags above)
+
+    // ─────────────────────────────────────────────
+    // Indian financial year helper
+    // FY = April 1 of year Y to March 31 of year Y+1
+    // Returns e.g. "2025-26"
+    // ─────────────────────────────────────────────
+    function getFinancialYear() {
+      const now = new Date();
+      const y   = now.getFullYear();
+      const m   = now.getMonth(); // 0 = Jan … 3 = Apr
+      const startYear = m >= 3 ? y : y - 1;  // April (m=3) starts new FY
+      return `${startYear}-${String(startYear + 1).slice(-2)}`;
+    }
+
+    // ─────────────────────────────────────────────
+    // Invoice number
+    // Counter stored in localStorage per FY so it
+    // survives page refreshes. The actual increment
+    // happens only when "Save to Ledger" is clicked
+    // (that will be wired in the next step). For
+    // now we show what the next number WILL be.
+    // ─────────────────────────────────────────────
+    function peekInvoiceNumber() {
+      const fy  = getFinancialYear();
+      const key = `inv_counter_${fy}`;
+      const n   = parseInt(localStorage.getItem(key) || '0') + 1;
+      return `INV-${fy}-${String(n).padStart(3, '0')}`;
+    }
+
+    document.getElementById('inv-number').value = peekInvoiceNumber();
+
+    // ─────────────────────────────────────────────
+    // Today's date in DD/MM/YYYY
+    // ─────────────────────────────────────────────
+    function todayDDMMYYYY() {
+      const d  = new Date();
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}/${mm}/${d.getFullYear()}`;
+    }
+
+    document.getElementById('inv-date').value = todayDDMMYYYY();
+
+    // Auto-insert slashes as the user types the date (e.g. 011 → 01/1)
+    document.getElementById('inv-date').addEventListener('input', function () {
+      let v = this.value.replace(/\D/g, '').slice(0, 8); // digits only, max 8
+      if (v.length > 4) v = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4);
+      else if (v.length > 2) v = v.slice(0,2) + '/' + v.slice(2);
+      this.value = v;
+    });
+
+    // Calendar button: open native date picker, sync back to DD/MM/YYYY text field
+    (function () {
+      const calBtn    = document.getElementById('inv-date-cal-btn');
+      const picker    = document.getElementById('inv-date-picker');
+      const textField = document.getElementById('inv-date');
+
+      // Pre-fill picker with today when opened
+      calBtn.addEventListener('click', function () {
+        // Convert current DD/MM/YYYY text → YYYY-MM-DD for the picker
+        const parts = textField.value.split('/');
+        if (parts.length === 3 && parts[2].length === 4) {
+          picker.value = parts[2] + '-' + parts[1] + '-' + parts[0];
+        } else {
+          const t = new Date();
+          picker.value = t.getFullYear() + '-' +
+            String(t.getMonth()+1).padStart(2,'0') + '-' +
+            String(t.getDate()).padStart(2,'0');
+        }
+        picker.showPicker ? picker.showPicker() : picker.click();
+      });
+
+      // When user picks a date, write it back as DD/MM/YYYY
+      picker.addEventListener('change', function () {
+        if (!this.value) return;
+        const [y, m, day] = this.value.split('-');
+        textField.value = day + '/' + m + '/' + y;
+      });
+    }());
+
+    // ─────────────────────────────────────────────
+    // Indian rupee formatter — always returns ₹ string
+    // e.g. fmtINR(100000) → "₹1,00,000.00"
+    // Indian grouping: last 3 digits, then groups of 2
+    // ─────────────────────────────────────────────
+    function fmtINR(n) {
+      const num = Number(n);
+      if (isNaN(num)) return '₹0.0';
+      return '₹' + num.toLocaleString('en-IN', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+      });
+    }
+
+    function recalcTotals() { /* totals display removed; amounts shown per-row */ }
+
+    // ─────────────────────────────────────────────
+    // Line items
+    // ─────────────────────────────────────────────
+    const tbody = document.getElementById('items-body');
+
+    // Build one table row and return the <tr> element
+    function createItemRow() {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="col-service">
+          <input type="text" class="item-service" placeholder="Product description" />
+        </td>
+        <td class="col-unit">
+          <input type="text" class="item-unit" value="KG" style="text-transform:uppercase;" />
+        </td>
+        <td class="col-qty">
+          <input type="number" class="item-qty" placeholder="1" min="0" step="any" />
+        </td>
+        <td class="col-rate">
+          <input type="number" class="item-rate" placeholder="0.00" min="0" step="any" />
+        </td>
+        <td class="col-amount">
+          <div class="amount-cell item-amount">—</div>
+        </td>
+        <td class="col-del">
+          <button class="btn-del-row" type="button" title="Remove row">&#x2715;</button>
+        </td>
+      `;
+
+      const qtyInput  = tr.querySelector('.item-qty');
+      const rateInput = tr.querySelector('.item-rate');
+      const amountDiv = tr.querySelector('.item-amount');
+
+      // Product autocomplete dropdown (fixed-position so it overlays everything)
+      const svcInput = tr.querySelector('.item-service');
+      const dropdown = document.createElement('div');
+      dropdown.className = 'desc-dropdown';
+      dropdown.style.display = 'none';
+      document.body.appendChild(dropdown);
+
+      function positionDropdown() {
+        const rect = svcInput.getBoundingClientRect();
+        const vw   = window.innerWidth;
+        const vh   = window.innerHeight;
+        // Render off-screen to measure real size with no visual flash
+        dropdown.style.top  = '-9999px';
+        dropdown.style.left = '-9999px';
+        dropdown.style.display = 'flex';
+        const ddW = Math.min(dropdown.offsetWidth, vw - 16);
+        dropdown.style.width = ddW + 'px';
+        const ddH = dropdown.offsetHeight;
+        // Horizontal: anchor to input left, clamp to viewport
+        let left = rect.left;
+        if (left + ddW > vw - 8) left = vw - ddW - 8;
+        if (left < 8) left = 8;
+        // Vertical: prefer below; flip above only if fits there better
+        let top = rect.bottom + 4;
+        if (top + ddH > vh - 8) {
+          const topAbove = rect.top - ddH - 4;
+          top = topAbove >= 8 ? topAbove : Math.max(8, vh - ddH - 8);
+        }
+        dropdown.style.top  = top  + 'px';
+        dropdown.style.left = left + 'px';
+        dropdown.style.display = 'none';
+      }
+
+      function attachItemListeners() {
+        dropdown.querySelectorAll('.desc-dd-item').forEach(function(item){
+          item.addEventListener('mousedown', function(e){
+            e.preventDefault();
+            svcInput.value = item.textContent;
+            dropdown.style.display = 'none';
+          });
+        });
+      }
+
+      function showCategoryProducts(cat) {
+        const products = PRODUCT_CATEGORIES[cat];
+        const cols    = cat === 'BEADS' ? 4 : 3;
+        const minW    = cat === 'BEADS' ? 620 : 340;
+        dropdown.style.minWidth = minW + 'px';
+        dropdown.innerHTML =
+          '<div class="dd-back-row">' +
+            '<span class="dd-back-btn" data-action="back">&#8592;</span>' +
+            '<span class="dd-cat-label">' + cat + '</span>' +
+          '</div>' +
+          '<div class="desc-dd-grid" style="grid-template-columns:repeat(' + cols + ',auto)">' +
+            products.map(function(p){ return '<div class="desc-dd-item">' + p + '</div>'; }).join('') +
+          '</div>';
+        positionDropdown();
+        dropdown.style.display = 'flex';
+        dropdown.querySelector('.dd-back-btn').addEventListener('mousedown', function(e){
+          e.preventDefault();
+          showCategoryScreen();
+        });
+        attachItemListeners();
+      }
+
+      function showCategoryScreen() {
+        dropdown.style.minWidth = '280px';
+        dropdown.innerHTML =
+          '<div class="dd-cat-row">' +
+            Object.keys(PRODUCT_CATEGORIES).map(function(cat){
+              return '<div class="dd-cat-btn" data-cat="' + cat + '">' +
+                cat +
+                '<span class="dd-cat-count">' + PRODUCT_CATEGORIES[cat].length + ' items</span>' +
+              '</div>';
+            }).join('') +
+          '</div>';
+        positionDropdown();
+        dropdown.style.display = 'flex';
+        dropdown.querySelectorAll('.dd-cat-btn').forEach(function(btn){
+          btn.addEventListener('mousedown', function(e){
+            e.preventDefault();
+            showCategoryProducts(btn.dataset.cat);
+          });
+        });
+      }
+
+      function showDropdown(filter) {
+        const q = (filter || '').toLowerCase();
+        if (q) {
+          // search mode: scan all categories
+          const matches = [];
+          Object.keys(PRODUCT_CATEGORIES).forEach(function(cat){
+            PRODUCT_CATEGORIES[cat].forEach(function(p){
+              if (p.toLowerCase().includes(q)) matches.push(p);
+            });
+          });
+          if (!matches.length) { dropdown.style.display = 'none'; return; }
+          dropdown.innerHTML =
+            '<div class="desc-dd-grid" style="grid-template-columns:repeat(3,auto)">' +
+              matches.map(function(p){ return '<div class="desc-dd-item">' + p + '</div>'; }).join('') +
+            '</div>';
+          positionDropdown();
+          dropdown.style.display = 'flex';
+          attachItemListeners();
+        } else {
+          showCategoryScreen();
+        }
+      }
+
+      svcInput.addEventListener('focus', function(){ showDropdown(this.value); });
+      svcInput.addEventListener('input', function(){ showDropdown(this.value); });
+      svcInput.addEventListener('blur',  function(){ setTimeout(function(){ dropdown.style.display='none'; }, 150); });
+
+      // Amount = Qty × Rate; then roll up to totals
+      function recalcAmount() {
+        const qty  = parseFloat(qtyInput.value)  || 0;
+        const rate = parseFloat(rateInput.value) || 0;
+        const amt  = qty * rate;
+        amountDiv.textContent = amt > 0 ? fmtINR(amt) : '—';
+        recalcTotals();
+      }
+
+      qtyInput.addEventListener('input',  recalcAmount);
+      rateInput.addEventListener('input', recalcAmount);
+
+      // Delete this row; keep at least one row in the table
+      tr.querySelector('.btn-del-row').addEventListener('click', function () {
+        if (tbody.rows.length > 1) {
+          tr.remove();
+          refreshDelButtons();
+          recalcTotals();
+        }
+      });
+
+      return tr;
+    }
+
+    // Disable the delete button when only one row remains
+    function refreshDelButtons() {
+      const btns = tbody.querySelectorAll('.btn-del-row');
+      btns.forEach(function (b) { b.disabled = btns.length === 1; });
+    }
+
+    function addRow() {
+      tbody.appendChild(createItemRow());
+      refreshDelButtons();
+      recalcTotals();
+    }
+
+    document.getElementById('btn-add-row').addEventListener('click', addRow);
+
+    // Initial row on page load
+    addRow();
+
+    // ─────────────────────────────────────────────
+    // PDF generation
+    // ─────────────────────────────────────────────
+
+    // Paste your logo image URL here (any publicly accessible PNG/JPG/WebP).
+    // Leave as empty string to skip the logo and show business name only.
+    const LOGO_URL = 'https://i.ibb.co/TBZ8VV4J/Whats-App-Image-2026-07-29-at-00-22-47.jpg';
+
+    // jsPDF's built-in Helvetica font lacks the ₹ glyph (U+20B9), so we
+    // write "Rs." in the PDF while keeping ₹ on the web page.
+    function pdfINR(n) {
+      const num = Number(n) || 0;
+      return 'Rs. ' + num.toLocaleString('en-IN', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+      });
+    }
+
+    // Resolves once the Google Fonts stylesheet has parsed, so the
+    // @font-face rule actually exists before document.fonts.load() looks
+    // for it (otherwise the load call silently matches nothing).
+    const gujFontCssReady = new Promise(function (resolve) {
+      const link = document.getElementById('gujFontLink');
+      if (!link) return resolve();
+      if (link.sheet) return resolve();
+      link.addEventListener('load', function () { resolve(); });
+      link.addEventListener('error', function () { resolve(); });
+      setTimeout(resolve, 4000); // don't block PDF generation forever if offline
+    });
+
+    // jsPDF's built-in fonts also have no Gujarati glyphs, so the notice
+    // below is rendered with the browser's Gujarati font onto a canvas and
+    // embedded as a PNG image instead of drawn with doc.text().
+    async function buildGujaratiNoticeImage(CW, maxFontMm) {
+      const lines = [
+        '1. માલ માં કોઈ પણ જાતની કલર ગેરંટી આવશે નહી.',
+        '2. મશીન માં નાખતી વખતે ચેક કરી ને નાખવૂ પાછળ થી કોઈ દલીલ સાંભળવા માં આવશે નહી.',
+        '3. રોજ ગોલ્ડ, સિલ્વર, ગોલ્ડ બધી આઈટમ ચાઈના ઓરિજિનલ આવશે 100 % ગેરંટી.'
+      ];
+      const scale   = 8; // px per mm — keeps the embedded PNG crisp
+      const widthPx = Math.round(CW * scale);
+      const padPx   = Math.round(1.2 * scale);
+
+      const fontFamily = 'Noto Sans Gujarati';
+      try {
+        await gujFontCssReady;
+        await document.fonts.load('700 40px "' + fontFamily + '"', lines.join(''));
+        await document.fonts.ready;
+      } catch (e) { /* fall through to system font fallback below */ }
+
+      // Shrink the font until the widest line fits the given width — the
+      // remark-box placement is much narrower than the full invoice width.
+      const probe = document.createElement('canvas').getContext('2d');
+      function setProbeFont(px) {
+        probe.font = '700 ' + px + 'px "' + fontFamily + '","Nirmala UI","Shruti",sans-serif';
+      }
+      let fontPx = Math.round((maxFontMm || 4.2) * scale);
+      setProbeFont(fontPx);
+      const widest = Math.max.apply(null, lines.map(function (l) { return probe.measureText(l).width; }));
+      const maxTextWidthPx = widthPx - padPx * 2;
+      if (widest > maxTextWidthPx) {
+        fontPx = Math.max(Math.floor(fontPx * (maxTextWidthPx / widest)), Math.round(2.6 * scale));
+        setProbeFont(fontPx);
+      }
+
+      const lineHPx  = Math.round(fontPx * 1.55);
+      const heightPx = lineHPx * lines.length + padPx * 2;
+
+      const canvas = document.createElement('canvas');
+      canvas.width  = widthPx;
+      canvas.height = heightPx;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, widthPx, heightPx);
+      ctx.fillStyle = '#000000';
+      ctx.font = probe.font;
+      ctx.textBaseline = 'top';
+      lines.forEach(function (line, i) {
+        ctx.fillText(line, padPx, padPx + i * lineHPx);
+      });
+
+      return { dataUrl: canvas.toDataURL('image/png'), heightMm: heightPx / scale };
+    }
+
+    function amountInWords(amount) {
+      const ONES = ['','ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT','NINE',
+                    'TEN','ELEVEN','TWELVE','THIRTEEN','FOURTEEN','FIFTEEN','SIXTEEN',
+                    'SEVENTEEN','EIGHTEEN','NINETEEN'];
+      const TENS = ['','','TWENTY','THIRTY','FORTY','FIFTY','SIXTY','SEVENTY','EIGHTY','NINETY'];
+      function w(n) {
+        if (n <= 0) return '';
+        if (n < 20) return ONES[n] + ' ';
+        if (n < 100) return TENS[Math.floor(n/10)] + (n%10 ? ' '+ONES[n%10] : '') + ' ';
+        if (n < 1000) return ONES[Math.floor(n/100)] + ' HUNDRED ' + w(n%100);
+        if (n < 100000) return w(Math.floor(n/1000)) + 'THOUSAND ' + w(n%1000);
+        if (n < 10000000) return w(Math.floor(n/100000)) + 'LAKH ' + w(n%100000);
+        return w(Math.floor(n/10000000)) + 'CRORE ' + w(n%10000000);
+      }
+      const r = Math.round(amount);
+      if (r <= 0) return 'ZERO RUPEES ONLY';
+      return 'RUPEES : ' + w(r).trim().replace(/\s+/g,' ') + ' ONLY';
+    }
+
+    // Format a number without forced trailing zeros: 61.0→"61", 6.10→"6.1", 61.25→"61.25"
+    function smartNum(n) {
+      if (!n && n !== 0) return '';
+      return parseFloat(Number(n).toFixed(10)).toString();
+    }
+
+    // Load an image URL and return a base64 data-URL via a canvas, or null
+    // if loading fails. The PDF function awaits this before drawing.
+    function loadImageAsBase64(url) {
+      return new Promise(function (resolve) {
+        if (!url) return resolve(null);
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function () {
+          const canvas = document.createElement('canvas');
+          canvas.width  = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+          try { resolve(canvas.toDataURL('image/png')); }
+          catch (e) { resolve(null); } // tainted canvas (CORS)
+        };
+        img.onerror = function () { resolve(null); };
+        img.src = url;
+      });
+    }
+
+    // ─────────────────────────────────────────────
+    // WhatsApp URL builder
+    // ─────────────────────────────────────────────
+    function buildWhatsAppURL(phone, message) {
+      // Step 1: strip everything that is not a digit — removes +, spaces, dashes, brackets
+      let digits = (phone || '').replace(/\D/g, '');
+
+      // Step 2: normalise to E.164 without the + sign (WhatsApp requires pure digits)
+      if (digits.length === 10) {
+        // Plain Indian mobile: 9998400072 → 919998400072
+        digits = '91' + digits;
+      } else if (digits.length === 11 && digits.charAt(0) === '0') {
+        // 0-prefixed: 09998400072 → 919998400072
+        digits = '91' + digits.slice(1);
+      } else if (digits.length === 12 && digits.startsWith('91')) {
+        // Already correct: 919998400072 — leave untouched
+      }
+      // Any other length: pass through as-is (best effort)
+
+      // Final URL: https://wa.me/<pure_digits>?text=<encoded>
+      // No + sign, no spaces — WhatsApp opens direct chat only in this exact format
+      return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(message);
+    }
+
+    // ─────────────────────────────────────────────
+    // PDF preview modal
+    // Shows generated PDF in an overlay with Download
+    // and WhatsApp share buttons.
+    // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Bill image generation (html2canvas)
+    // ─────────────────────────────────────────────
+
+    function buildBillHTML(billData, logoData) {
+      const logoImg = logoData
+        ? '<img src="' + logoData + '" style="width:76px;height:76px;object-fit:contain;border-radius:10px;display:block;margin:0 auto 12px;" />'
+        : '<div style="width:76px;height:76px;background:rgba(255,255,255,0.15);border-radius:10px;margin:0 auto 12px;"></div>';
+
+      const header =
+        '<div style="background:#30364F;padding:28px 24px 18px;text-align:center;color:#fff;">' +
+          logoImg +
+          '<div style="font-size:24px;font-weight:800;letter-spacing:0.14em;">' + (billData.title || 'BILL') + '</div>' +
+        '</div>';
+
+      const sig =
+        '<div style="padding:14px 24px 22px;display:flex;justify-content:flex-end;">' +
+          '<div style="text-align:right;min-width:180px;padding-top:8px;border-top:1px solid #9ca3af;">' +
+            '<div style="font-size:11px;color:#6b7280;">Authorised Signature</div>' +
+            '<div style="font-size:13px;font-weight:700;color:#30364F;margin-top:3px;">RADHE MATERIAL</div>' +
+          '</div>' +
+        '</div>';
+
+      const gujaratiNotice =
+        '<div style="padding:12px 14px;border-top:1px solid #999;">' +
+          '<div style="font-size:16px;font-weight:700;color:#000;line-height:1.7;">' +
+            '1. માલ માં કોઈ પણ જાતની કલર ગેરંટી આવશે નહી.<br>' +
+            '2. મશીન માં નાખતી વખતે ચેક કરી ને નાખવૂ પાછળ થી કોઈ દલીલ સાંભળવા માં આવશે નહી.<br>' +
+            '3. રોજ ગોલ્ડ, સિલ્વર, ગોલ્ડ બધી આઈટમ ચાઈના ઓરિજિનલ આવશે 100 % ગેરંટી.' +
+          '</div>' +
+        '</div>';
+
+      if (billData.type === 'invoice') {
+        const items     = billData.lineItems || [];
+        const basic     = billData.grandTotal;
+        const totalAmt  = Math.round(basic);
+        const roundOff  = totalAmt - basic;
+        const qtyTotal  = items.reduce(function(s,r){ return s+(r.qty||0); }, 0);
+        const MIN_ROWS  = 10;
+        const emptyN    = Math.max(0, MIN_ROWS - items.length);
+        const C1 = 'border:1px solid #999;padding:5px 8px;font-size:13px;';
+
+        const dataRows = items.map(function(item, i) {
+          return '<tr>' +
+            '<td style="' + C1 + 'text-align:center;">' + (i+1) + '</td>' +
+            '<td style="' + C1 + '">' + (item.service||'') + '</td>' +
+            '<td style="' + C1 + 'text-align:center;">' + (item.unit||'') + '</td>' +
+            '<td style="' + C1 + 'text-align:right;">' + (item.qty>0?(item.qtyDisplay||smartNum(item.qty)):'') + '</td>' +
+            '<td style="' + C1 + 'text-align:right;">' + (item.rate>0?(item.rateDisplay||smartNum(item.rate)):'') + '</td>' +
+            '<td style="' + C1 + 'text-align:right;">' + (item.amount>0?item.amount.toFixed(1):'') + '</td>' +
+          '</tr>';
+        }).join('');
+
+        const emptyRow = '<tr>' +
+          '<td style="' + C1 + 'height:24px;">&nbsp;</td>' +
+          '<td style="' + C1 + '">&nbsp;</td>' +
+          '<td style="' + C1 + '">&nbsp;</td>' +
+          '<td style="' + C1 + '">&nbsp;</td>' +
+          '<td style="' + C1 + '">&nbsp;</td>' +
+          '<td style="' + C1 + '">&nbsp;</td>' +
+        '</tr>';
+        const emptyRows = Array(emptyN).fill(emptyRow).join('');
+
+        const roundOffTxt = roundOff === 0 ? '-' : (roundOff > 0 ? '+' : '') + roundOff.toFixed(1);
+        const logoHtml    = logoData
+          ? '<img src="' + logoData + '" style="width:60px;height:60px;object-fit:contain;display:block;margin:0 auto 6px;" />'
+          : '';
+
+        return '<div style="width:800px;font-family:Arial,Helvetica,sans-serif;background:#fff;color:#000;border:2px solid #555;">' +
+          // ── Header ──
+          '<div style="text-align:center;padding:16px 20px 12px;border-bottom:2px solid #555;">' +
+            logoHtml +
+            '<div style="font-size:28px;font-weight:800;letter-spacing:0.06em;line-height:1.1;">RADHE MATERIAL</div>' +
+            '<div style="font-size:12px;margin-top:5px;color:#444;">P-775, NEW GIDC, KATARGAM, SURAT, PIN: 395004</div>' +
+            '<div style="font-size:17px;font-weight:700;margin-top:10px;letter-spacing:0.14em;text-decoration:underline;">INVOICE</div>' +
+          '</div>' +
+          // ── TO + Inv No / Date ──
+          '<table style="width:100%;border-collapse:collapse;border-bottom:2px solid #555;">' +
+            '<tr>' +
+              '<td style="padding:10px 14px;width:58%;border-right:1px solid #999;vertical-align:top;">' +
+                '<span style="font-size:13px;"><b>TO,</b>&nbsp;&nbsp;' + (billData.clientName||'') + '</span>' +
+                (billData.clientPhone ? '<div style="font-size:12px;color:#555;margin-top:3px;">Ph: ' + billData.clientPhone + '</div>' : '') +
+              '</td>' +
+              '<td style="padding:10px 14px;vertical-align:top;">' +
+                '<div style="font-size:13px;margin-bottom:5px;">Inv. No &nbsp;:&ndash;&nbsp;&nbsp;<b>' + (billData.invNumber||'') + '</b></div>' +
+                '<div style="font-size:13px;">Date &nbsp;:&ndash;&nbsp;&nbsp;<b>' + (billData.invDate||'') + '</b></div>' +
+              '</td>' +
+            '</tr>' +
+          '</table>' +
+          // ── Items table ──
+          '<table style="width:100%;border-collapse:collapse;">' +
+            '<thead><tr style="background:#e0e0e0;">' +
+              '<th style="' + C1 + 'text-align:center;font-size:12px;width:6%;">Sr<br>No</th>' +
+              '<th style="' + C1 + 'text-align:center;font-size:12px;">Description</th>' +
+              '<th style="' + C1 + 'text-align:center;font-size:12px;width:8%;">Unit</th>' +
+              '<th style="' + C1 + 'text-align:center;font-size:12px;width:10%;">Qty</th>' +
+              '<th style="' + C1 + 'text-align:center;font-size:12px;width:12%;">Rate</th>' +
+              '<th style="' + C1 + 'text-align:center;font-size:12px;width:13%;">Amount</th>' +
+            '</tr></thead>' +
+            '<tbody>' + dataRows + emptyRows + '</tbody>' +
+            '<tfoot><tr style="background:#f0f0f0;">' +
+              '<td colspan="3" style="' + C1 + '">&nbsp;</td>' +
+              '<td style="' + C1 + 'text-align:right;font-weight:700;">' + (qtyTotal>0?qtyTotal.toFixed(2):'') + '</td>' +
+              '<td colspan="2" style="' + C1 + '">&nbsp;</td>' +
+            '</tr></tfoot>' +
+          '</table>' +
+          // ── Footer: words + amounts ──
+          '<table style="width:100%;border-collapse:collapse;border-top:2px solid #555;">' +
+            '<tr>' +
+              '<td style="padding:10px 14px;width:58%;border-right:1px solid #999;vertical-align:middle;">' +
+                '<div style="font-size:12px;font-weight:700;">' + amountInWords(basic) + '</div>' +
+              '</td>' +
+              '<td style="padding:0;vertical-align:top;">' +
+                '<table style="width:100%;border-collapse:collapse;">' +
+                  '<tr><td style="padding:7px 14px;font-size:12px;border-bottom:1px solid #ccc;">Basic Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:12px;border-bottom:1px solid #ccc;">' + basic.toFixed(1) + '</td></tr>' +
+                  '<tr><td style="padding:7px 14px;font-size:12px;border-bottom:1px solid #ccc;">Round Off &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:12px;border-bottom:1px solid #ccc;">' + roundOffTxt + '</td></tr>' +
+                  '<tr><td style="padding:7px 14px;font-size:13px;font-weight:700;">Total Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:13px;font-weight:700;">' + totalAmt.toFixed(1) + '</td></tr>' +
+                '</table>' +
+              '</td>' +
+            '</tr>' +
+            // ── Remark + E&OE ──
+            '<tr style="border-top:1px solid #999;">' +
+              '<td style="padding:10px 14px;font-size:12px;border-right:1px solid #999;">Remark &nbsp;:&ndash;</td>' +
+              '<td style="padding:10px 14px;text-align:right;font-size:12px;">' +
+                '<div>E&amp;OE</div>' +
+                '<div style="font-weight:700;margin-top:2px;">For RADHE MATERIAL</div>' +
+              '</td>' +
+            '</tr>' +
+          '</table>' +
+          gujaratiNotice +
+        '</div>';
+
+      } else {
+        // Receipt layout
+        const settled = (billData.remainingAfter || 0) === 0;
+        const remBg   = settled ? '#dcfce7' : '#E4E8EC';
+        const remBdr  = settled ? '#16a34a' : '#30364F';
+        const remClr  = settled ? '#16a34a' : '#30364F';
+        const remText = settled ? 'FULLY SETTLED' : fmtINR(billData.remainingAfter);
+
+        const details = [
+          ['Payment Date', billData.paymentDate || '—'],
+          ['Client Name',  billData.clientName  || '—'],
+          ['Phone Number', billData.clientPhone || '—'],
+          ['Paid To',      'RADHE MATERIAL'],
+          ['Address',      'P-775, NEW GIDC, KATARGAM, SURAT, PIN: 395004'],
+        ];
+        const detailRows = details.map(function (d) {
+          return '<div style="display:flex;justify-content:space-between;padding:10px 20px;border-bottom:1px solid #f3f4f6;">' +
+            '<span style="font-size:12px;font-weight:700;color:#6b7280;">' + d[0] + '</span>' +
+            '<span style="font-size:13px;color:#374151;text-align:right;max-width:55%;">'  + d[1] + '</span>' +
+          '</div>';
+        }).join('');
+
+        return '<div style="width:800px;font-family:Arial,Helvetica,sans-serif;background:#fff;">' +
+          header +
+          '<div style="background:#E4E8EC;padding:12px 20px;font-size:14px;border-bottom:1px solid #ACBAC4;">' +
+            '<span style="color:#6b7280;">Received from:</span>' +
+            '<b style="color:#30364F;margin-left:8px;">' + (billData.clientName || '') + '</b>' +
+          '</div>' +
+          '<div style="margin:20px 20px 0;background:#dcfce7;border:2px solid #16a34a;border-radius:12px;padding:24px;text-align:center;">' +
+            '<div style="font-size:12px;font-weight:700;color:#16a34a;letter-spacing:0.1em;margin-bottom:8px;">AMOUNT PAID</div>' +
+            '<div style="font-size:34px;font-weight:800;color:#16a34a;">' + fmtINR(billData.amountPaid || 0) + '</div>' +
+          '</div>' +
+          '<div style="margin-top:16px;">' + detailRows + '</div>' +
+          '<div style="margin:16px 20px;padding:14px 18px;background:' + remBg + ';border:1.5px solid ' + remBdr + ';border-radius:8px;display:flex;justify-content:space-between;align-items:center;">' +
+            '<span style="font-size:13px;font-weight:700;color:' + remClr + ';">Remaining Balance</span>' +
+            '<span style="font-size:17px;font-weight:800;color:' + remClr + ';">' + remText + '</span>' +
+          '</div>' +
+          gujaratiNotice +
+          sig +
+          '<div style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:10px 20px;text-align:center;">' +
+            '<span style="font-size:11px;color:#9ca3af;">This is a computer-generated payment receipt.</span>' +
+          '</div>' +
+        '</div>';
+      }
+    }
+
+    async function generateBillImage(billData) {
+      if (typeof window.html2canvas !== 'function') {
+        throw new Error('Image library not ready. Please refresh the page and try again.');
+      }
+      const logoData = await loadImageAsBase64(LOGO_URL);
+      const html     = buildBillHTML(billData, logoData);
+
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:#fff;z-index:-999;';
+      wrap.innerHTML = html;
+      document.body.appendChild(wrap);
+
+      try {
+        return await window.html2canvas(wrap, {
+          scale: 2,
+          useCORS: false,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          logging: false,
+          width: 800,
+        });
+      } finally {
+        if (document.body.contains(wrap)) document.body.removeChild(wrap);
+      }
+    }
+
+    function triggerDownloadPNG(canvas, filename) {
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    // ── Parse DD/MM/YYYY → Date (midnight local) ──
+    function parseDMY(s) {
+      if (!s) return null;
+      const p = s.split('/');
+      if (p.length !== 3) return null;
+      return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]));
+    }
+
+    // ── Statement date-range picker modal ──
+    function showStatementDatePicker(client) {
+      const existing = document.getElementById('stmt-date-overlay');
+      if (existing) existing.remove();
+
+      // Find the earliest transaction date across all history
+      const allPurch = [];
+      (client.clearedHistory || []).forEach(function(h){ (h.purchases||[]).forEach(function(p){ allPurch.push(p); }); });
+      (client.purchases || []).forEach(function(p){ allPurch.push(p); });
+
+      const today = new Date();
+      const toISO = today.toISOString().split('T')[0];
+      let fromISO = toISO;
+      allPurch.forEach(function(p) {
+        const d = parseDMY(p.date);
+        if (d) { const iso = d.toISOString().split('T')[0]; if (iso < fromISO) fromISO = iso; }
+      });
+
+      const overlay = document.createElement('div');
+      overlay.id = 'stmt-date-overlay';
+      overlay.innerHTML =
+        '<div class="sdm-box">' +
+          '<div class="sdm-header">' +
+            '<span>&#9112; Account Statement</span>' +
+            '<button class="sdm-close" aria-label="Close">&times;</button>' +
+          '</div>' +
+          '<div class="sdm-body">' +
+            '<div class="sdm-hint">Select the date range to include in the statement.</div>' +
+            '<div class="sdm-row"><label>From Date</label>' +
+              '<input type="date" id="stmt-from-date" value="' + fromISO + '" /></div>' +
+            '<div class="sdm-row"><label>To Date</label>' +
+              '<input type="date" id="stmt-to-date" value="' + toISO + '" /></div>' +
+          '</div>' +
+          '<div class="sdm-footer">' +
+            '<button class="sdm-cancel">Cancel</button>' +
+            '<button class="sdm-generate">&#8595; Download PDF</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(overlay);
+
+      function close() { overlay.remove(); }
+      overlay.querySelector('.sdm-close').addEventListener('click', close);
+      overlay.querySelector('.sdm-cancel').addEventListener('click', close);
+      overlay.addEventListener('click', function(e){ if (e.target === overlay) close(); });
+
+      overlay.querySelector('.sdm-generate').addEventListener('click', async function () {
+        const fromVal = document.getElementById('stmt-from-date').value;
+        const toVal   = document.getElementById('stmt-to-date').value;
+        if (!fromVal || !toVal) { alert('Please select both dates.'); return; }
+        const fromDate = new Date(fromVal);
+        const toDate   = new Date(toVal + 'T23:59:59');
+        if (fromDate > toDate) { alert('From date must be before To date.'); return; }
+        close();
+        await generateStatement(client, fromDate, toDate);
+      });
+    }
+
+    // ── Reprint a stored invoice as PDF ──
+    async function generateStatement(client, fromDate, toDate) {
+      const { jsPDF } = window.jspdf;
+      const PW = 210, ML = 12, MR = 12, CW = PW - ML - MR;
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+      // Date-range filter helper
+      function inRange(dateStr) {
+        if (!fromDate && !toDate) return true;
+        const d = parseDMY(dateStr);
+        if (!d) return true;
+        if (fromDate && d < fromDate) return false;
+        if (toDate   && d > toDate)   return false;
+        return true;
+      }
+
+      // Merge cleared history + active records, then apply date filter
+      const allPurchases = [];
+      const allPayments  = [];
+      (client.clearedHistory || []).forEach(function(h) {
+        (h.purchases || []).forEach(function(p) { allPurchases.push(p); });
+        (h.payments  || []).forEach(function(p) { allPayments.push(p); });
+      });
+      (client.purchases || []).forEach(function(p) { allPurchases.push(p); });
+      (client.payments  || []).forEach(function(p) { allPayments.push(p); });
+
+      const purchases = allPurchases.filter(function(p){ return inRange(p.date); });
+      const payments  = allPayments.filter(function(p){  return inRange(p.date); });
+
+      if (purchases.length === 0 && payments.length === 0) {
+        alert('No transactions found in the selected date range.');
+        return;
+      }
+
+      // Outstanding = total in this date range (billed minus paid within range)
+      // Always use the stored current balance — not a historical recalculation.
+      // After "Mark Paid / Clear All Records" the active outstanding is 0,
+      // which is what the client detail screen shows. The statement must match.
+      const outstanding = Math.max(0,
+        (client.purchases || []).reduce(function(s,p){ return s+(p.grandTotal||0); }, 0) -
+        (client.payments  || []).reduce(function(s,p){ return s+(p.amount||0); }, 0)
+      );
+
+      const d = new Date();
+      const todayStr = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+
+      // Date range label for header
+      function fmtDateObj(dt) {
+        return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
+      }
+      const rangeLabel = fromDate && toDate
+        ? fmtDateObj(fromDate) + '  to  ' + fmtDateObj(toDate)
+        : 'All Transactions';
+      const logoData = await loadImageAsBase64(LOGO_URL);
+
+      // Columns: Date | InvNo | Description | Unit | Qty | Rate | Amount  (total = 186mm)
+      const COL = [22, 32, 50, 12, 15, 20, 35];
+      const CX  = [ML];
+      for (let k = 0; k < COL.length - 1; k++) CX.push(CX[k] + COL[k]);
+      const ROW_H = 7, PAGE_BOTTOM = 297 - 20;
+      let y = 8;
+
+      function ct(x, yw, w, h, txt, fs, sz, al, rgb) {
+        if (txt === null || txt === undefined || txt === '') return;
+        doc.setFont('helvetica', fs || 'normal');
+        doc.setFontSize(sz || 8.5);
+        doc.setTextColor(...(rgb || [0,0,0]));
+        const mid = yw + h/2 + 1.8;
+        if (al === 'R') doc.text(String(txt), x+w-2, mid, {align:'right'});
+        else if (al === 'C') doc.text(String(txt), x+w/2, mid, {align:'center'});
+        else doc.text(String(txt), x+2, mid);
+      }
+
+      function drawTableHeader() {
+        const hdrs = ['Date','Invoice No','Description','Unit','Qty','Rate','Amount'];
+        doc.setFillColor(48,54,79);
+        doc.rect(ML, y, CW, ROW_H, 'F');
+        for (let k = 0; k < COL.length; k++) {
+          const al = k >= 4 ? 'R' : 'L';
+          ct(CX[k], y, COL[k], ROW_H, hdrs[k], 'bold', 8, al, [255,255,255]);
+        }
+        y += ROW_H;
+      }
+
+      function checkPage() {
+        if (y + ROW_H > PAGE_BOTTOM) { doc.addPage(); y = 15; drawTableHeader(); }
+      }
+
+      // ─── Header ───────────────────────────────────────────────
+      const lsz = 24;
+      if (logoData) { doc.addImage(logoData,'PNG',(PW-lsz)/2,y,lsz,lsz); y += lsz+6; } else { y += 4; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.text('RADHE MATERIAL',PW/2,y,{align:'center'}); y+=5;
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.text('P-775, NEW GIDC, KATARGAM, SURAT, PIN: 395004',PW/2,y,{align:'center'}); y+=5;
+      doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text('ACCOUNT STATEMENT',PW/2,y,{align:'center'});
+      const tw = doc.getTextWidth('ACCOUNT STATEMENT');
+      doc.setLineWidth(0.4); doc.line(PW/2-tw/2,y+0.8,PW/2+tw/2,y+0.8); y+=7;
+
+      // Client box
+      doc.setDrawColor(0,0,0); doc.setLineWidth(0.3); doc.rect(ML,y,CW,18);
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(0,0,0);
+      doc.text('TO :  '+(client.name||client.phone), ML+3, y+5.5);
+      doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+      if (client.phone) doc.text('Ph: '+client.phone, ML+3, y+11);
+      doc.text('Statement Date : '+todayStr, ML+CW-3, y+5.5, {align:'right'});
+      doc.setFont('helvetica','bold'); doc.setFontSize(8);
+      doc.text('Period : '+rangeLabel, ML+CW-3, y+13, {align:'right'});
+      y += 20;
+
+      // ─── Table ────────────────────────────────────────────────
+      drawTableHeader();
+
+      let rowFlip = false;
+      purchases.forEach(function(p) {
+        const items    = p.lineItems || [];
+        const invNo    = p.invoiceNo || '—';
+        const invDate  = p.date      || '—';
+        const invTotal = p.grandTotal || 0;
+        const bg       = rowFlip ? [248,250,255] : [255,255,255];
+
+        if (items.length === 0) {
+          checkPage();
+          doc.setFillColor(...bg); doc.setDrawColor(210,210,210); doc.setLineWidth(0.1);
+          doc.rect(ML,y,CW,ROW_H,'FD');
+          ct(CX[0],y,COL[0],ROW_H,invDate,'normal',8);
+          ct(CX[1],y,COL[1],ROW_H,invNo,'normal',8);
+          ct(CX[6],y,COL[6],ROW_H,pdfINR(invTotal),'bold',8,'R');
+          y += ROW_H;
+        } else {
+          items.forEach(function(item,idx) {
+            checkPage();
+            doc.setFillColor(...bg); doc.setDrawColor(210,210,210); doc.setLineWidth(0.1);
+            doc.rect(ML,y,CW,ROW_H,'FD');
+            if (idx === 0) {
+              ct(CX[0],y,COL[0],ROW_H,invDate,'normal',8);
+              ct(CX[1],y,COL[1],ROW_H,invNo,'normal',8);
+            }
+            ct(CX[2],y,COL[2],ROW_H,item.service||'—','normal',8);
+            ct(CX[3],y,COL[3],ROW_H,item.unit||'','normal',8,'C');
+            ct(CX[4],y,COL[4],ROW_H,item.qty>0?(item.qtyDisplay||smartNum(item.qty)):'','normal',8,'R');
+            ct(CX[5],y,COL[5],ROW_H,item.rate>0?(item.rateDisplay||smartNum(item.rate)):'','normal',8,'R');
+            ct(CX[6],y,COL[6],ROW_H,item.amount>0?item.amount.toFixed(1):'','normal',8,'R');
+            y += ROW_H;
+          });
+        }
+        rowFlip = !rowFlip;
+      });
+
+      // ─── Payments ─────────────────────────────────────────────
+      payments.forEach(function(py) {
+        checkPage();
+        doc.setFillColor(240,255,245); doc.setDrawColor(200,230,210); doc.setLineWidth(0.1);
+        doc.rect(ML,y,CW,ROW_H,'FD');
+        ct(CX[0],y,COL[0],ROW_H,py.date||'—','normal',8);
+        ct(CX[1],y,COL[1]+COL[2]+COL[3]+COL[4]+COL[5],ROW_H,'PAYMENT RECEIVED','bold',8,'L');
+        ct(CX[6],y,COL[6],ROW_H,'- '+pdfINR(py.amount||0),'bold',8,'R',[22,101,52]);
+        y += ROW_H;
+      });
+
+      // ─── Outstanding total bar ─────────────────────────────────
+      y += 3;
+      doc.setDrawColor(0,0,0); doc.setLineWidth(0.4); doc.line(ML,y,ML+CW,y); y += 1;
+      doc.setFillColor(48,54,79); doc.rect(ML,y,CW,11,'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(255,255,255);
+      doc.text('TOTAL OUTSTANDING :', ML+4, y+7);
+      doc.text(pdfINR(outstanding), ML+CW-3, y+7, {align:'right'}); y += 13;
+
+      const gujNotice = await buildGujaratiNoticeImage(CW);
+      doc.addImage(gujNotice.dataUrl, 'PNG', ML, y + 2, CW, gujNotice.heightMm);
+      y += gujNotice.heightMm + 8;
+
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(120,120,120);
+      doc.text('Computer generated statement — RADHE MATERIAL. Contact us for any discrepancies.', PW/2, y+4, {align:'center'});
+
+      const filename = (client.name||client.phone).replace(/\s+/g,'_')+'_Statement.pdf';
+      showPDFModal(doc, filename, null, 'Account Statement — '+(client.name||client.phone), null);
+    }
+
+    async function reprintInvoice(purchase, client) {
+      const { jsPDF } = window.jspdf;
+      // 8 x 5.5in (203.2 x 139.7mm) — a bit smaller than exact half-A4 so
+      // there's manual print/cut margin when stacking two per A4 sheet.
+      // Margins are tightened (not the 180mm table width) to fit the narrower page.
+      const PW = 203.2, PH = 139.7, ML = 11.6, MR = 11.6, CW = PW - ML - MR;
+      const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'l' });
+      doc.setDrawColor(0,0,0); doc.setTextColor(0,0,0);
+
+      const clientName  = client.name  || '';
+      const clientPhone = client.phone || '';
+      const invNumber   = purchase.invoiceNo || '';
+      const invDate     = purchase.date      || '';
+      const lineItems   = purchase.lineItems || [];
+      const grandTotal  = purchase.grandTotal || 0;
+      const roundOff    = Math.round(grandTotal) - grandTotal;
+      const totalAmt    = Math.round(grandTotal);
+      const qtyTotal    = lineItems.reduce(function(s,r){ return s+(r.qty||0); }, 0);
+      const logoData    = await loadImageAsBase64(LOGO_URL);
+
+      // Reuse same drawing helpers as the live invoice PDF
+      const LW = 0.3;
+      function cellRect(x,y,w,h,fill){ doc.setLineWidth(LW); if(fill){doc.setFillColor(...fill);doc.rect(x,y,w,h,'FD');}else{doc.rect(x,y,w,h);} }
+      function cellText(x,y,w,h,text,fs,sz,al){ if(!text&&text!==0)return; const fsz=sz||9; doc.setFont('helvetica',fs||'normal'); doc.setFontSize(fsz); doc.setTextColor(0,0,0); const mid=y+h/2+fsz*0.2; if(al==='R')doc.text(String(text),x+w-2,mid,{align:'right'}); else if(al==='C')doc.text(String(text),x+w/2,mid,{align:'center'}); else doc.text(String(text),x+2,mid); }
+
+      let y = 5;
+      const topY = y;
+      const logoSz = 15;
+      if(logoData){ doc.addImage(logoData,'PNG',(PW-logoSz)/2,y,logoSz,logoSz); y+=logoSz+5; } else { y+=3; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('RADHE MATERIAL',PW/2,y,{align:'center'}); y+=4;
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.text('P-775, NEW GIDC, KATARGAM, SURAT, PIN: 395004',PW/2,y,{align:'center'}); y+=4.5;
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text('INVOICE',PW/2,y,{align:'center'});
+      const iw=doc.getTextWidth('INVOICE'); doc.setLineWidth(0.5); doc.line(PW/2-iw/2,y+0.6,PW/2+iw/2,y+0.6); y+=4;
+      doc.line(ML,topY,ML+CW,topY);
+      doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y);
+      const sx=ML+108, toH=11;
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.text('TO,   '+clientName,ML+2,y+4.5);
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.5); if(clientPhone) doc.text('Ph: '+clientPhone,ML+2,y+8.3);
+      doc.setLineWidth(0.3); doc.line(sx,y,sx,y+toH);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.text('Inv. No  :-',sx+3,y+4); doc.setFont('helvetica','bold'); doc.text(invNumber,sx+32,y+4);
+      doc.setFont('helvetica','normal'); doc.text('Date  :-',sx+3,y+8); doc.setFont('helvetica','bold'); doc.text(invDate,sx+32,y+8);
+      y+=toH; doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y);
+
+      const COL=[10,68,18,22,28,34]; const CX=[ML]; for(let k=0;k<COL.length-1;k++) CX.push(CX[k]+COL[k]);
+      const ROW_H=4.6;
+      for(let k=0;k<COL.length;k++){ cellRect(CX[k],y,COL[k],ROW_H,[224,224,224]); doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(0,0,0); const hh=['Sr\nNo','Description','Unit','Qty','Rate','Amount'][k].split('\n'); if(hh.length>1){doc.text(hh[0],CX[k]+COL[k]/2,y+1.9,{align:'center'});doc.text(hh[1],CX[k]+COL[k]/2,y+3.9,{align:'center'});}else{doc.text(hh[0],CX[k]+COL[k]/2,y+ROW_H/2+1.2,{align:'center'});} }
+      y+=ROW_H;
+      const MIN_R=10, totalRows=Math.max(lineItems.length,MIN_R);
+      for(let i=0;i<totalRows;i++){
+        const row=i<lineItems.length?lineItems[i]:null; const bg=i%2===1?[250,250,250]:[255,255,255];
+        for(let k=0;k<COL.length;k++){
+          cellRect(CX[k],y,COL[k],ROW_H,bg);
+          if(row){ let txt='',al='L'; switch(k){
+            case 0:txt=String(i+1);al='C';break;
+            case 1:doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(0,0,0);doc.text(doc.splitTextToSize(row.service,COL[1]-4)[0],CX[1]+2,y+ROW_H/2+1.2);continue;
+            case 2:txt=row.unit||'';al='C';break;
+            case 3:txt=row.qty>0?(row.qtyDisplay||smartNum(row.qty)):'';al='R';break;
+            case 4:txt=row.rate>0?(row.rateDisplay||smartNum(row.rate)):'';al='R';break;
+            case 5:txt=row.amount>0?row.amount.toFixed(1):'';al='R';break;
+          } cellText(CX[k],y,COL[k],ROW_H,txt,'normal',6.5,al); }
+        } y+=ROW_H;
+      }
+      for(let k=0;k<COL.length;k++){ cellRect(CX[k],y,COL[k],ROW_H,[240,240,240]); if(k===3&&qtyTotal>0) cellText(CX[k],y,COL[k],ROW_H,qtyTotal.toFixed(2),'bold',6.5,'R'); }
+      y+=ROW_H;
+      doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y);
+      const AH=5.2, fsx=ML+108;
+      const wl=doc.splitTextToSize(amountInWords(grandTotal),104); doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(0,0,0); doc.text(wl,ML+2,y+4.2);
+      doc.setLineWidth(0.3); doc.line(fsx,y,fsx,y+AH*3+1);
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.5);
+      doc.text('Basic Amount  :-',fsx+3,y+AH/2+1.3); doc.text(grandTotal.toFixed(1),ML+CW-2,y+AH/2+1.3,{align:'right'});
+      doc.setLineWidth(0.2); doc.line(fsx,y+AH,ML+CW,y+AH);
+      const rot=roundOff===0?'-':(roundOff>0?'+':'')+roundOff.toFixed(1);
+      doc.text('Round Off  :-',fsx+3,y+AH+AH/2+1.3); doc.text(rot,ML+CW-2,y+AH+AH/2+1.3,{align:'right'});
+      doc.line(fsx,y+AH*2,ML+CW,y+AH*2);
+      doc.setFont('helvetica','bold'); doc.text('Total Amount  :-',fsx+3,y+AH*2+AH/2+1.3); doc.text(totalAmt.toFixed(1),ML+CW-2,y+AH*2+AH/2+1.3,{align:'right'});
+      y+=AH*3+1; doc.setLineWidth(0.4); doc.line(ML,y,ML+CW,y);
+      const remarkColW = fsx-ML-4;
+      const gujNotice   = await buildGujaratiNoticeImage(remarkColW, 2.3);
+      const rH = Math.max(10, 5+gujNotice.heightMm+2);
+      doc.line(fsx,y,fsx,y+rH); doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.text('Remark  :-',ML+2,y+3.8);
+      doc.addImage(gujNotice.dataUrl,'PNG',ML+2,y+5,remarkColW,gujNotice.heightMm);
+      doc.setFontSize(6); doc.text('E&OE',ML+CW-2,y+4,{align:'right'}); doc.setFont('helvetica','bold'); doc.text('For RADHE MATERIAL',ML+CW-2,y+8,{align:'right'});
+      y+=rH; doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y); doc.line(ML,topY,ML,y); doc.line(ML+CW,topY,ML+CW,y);
+
+      const waMsg='Invoice '+invNumber+' for '+clientName+'\nDate: '+invDate+'\nTotal: Rs.'+grandTotal.toFixed(2);
+      const waURL=buildWhatsAppURL(clientPhone,waMsg);
+      const bd={ type:'invoice',title:'INVOICE',clientName,clientPhone,invNumber,invDate,lineItems,grandTotal };
+      showPDFModal(doc,invNumber+'.pdf',waURL,'Invoice — '+invNumber,bd);
+    }
+
+    // ── Export all data as CSV ──
+    async function generateAllClientsPDF() {
+      if (!allClients || allClients.length === 0) { alert('No clients to print.'); return; }
+
+      const btn = document.getElementById('btn-print-all');
+      btn.disabled = true; btn.textContent = 'Generating…';
+
+      try {
+        const { jsPDF } = window.jspdf;
+        const PW = 210, ML = 12, MR = 12, CW = PW - ML - MR;
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+        const logoData = await loadImageAsBase64(LOGO_URL);
+
+        const today = new Date();
+        const todayStr = String(today.getDate()).padStart(2,'0')+'/'+
+                         String(today.getMonth()+1).padStart(2,'0')+'/'+today.getFullYear();
+
+        const totalOutstanding = allClients.reduce(function(s,c){ return s+(c.outstanding||0); }, 0);
+
+        // ── Page header ──────────────────────────────────────────
+        let y = 8;
+        const lsz = 20;
+        if (logoData) { doc.addImage(logoData,'PNG',(PW-lsz)/2,y,lsz,lsz); y += lsz+5; } else { y += 4; }
+        doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(0,0,0);
+        doc.text('RADHE MATERIAL', PW/2, y, {align:'center'}); y += 5;
+        doc.setFont('helvetica','normal'); doc.setFontSize(8);
+        doc.text('P-775, NEW GIDC, KATARGAM, SURAT, PIN: 395004', PW/2, y, {align:'center'}); y += 5;
+        doc.setFont('helvetica','bold'); doc.setFontSize(12);
+        doc.text('CLIENT OUTSTANDING SUMMARY', PW/2, y, {align:'center'});
+        const tw = doc.getTextWidth('CLIENT OUTSTANDING SUMMARY');
+        doc.setLineWidth(0.4); doc.line(PW/2-tw/2, y+0.8, PW/2+tw/2, y+0.8); y += 6;
+        doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(80,80,80);
+        doc.text('Printed : ' + todayStr, ML, y);
+        doc.text('Total Clients : ' + allClients.length, PW/2, y, {align:'center'});
+        doc.text('Total Outstanding : ' + pdfINR(totalOutstanding), ML+CW, y, {align:'right'});
+        y += 7;
+
+        // ── Table header ─────────────────────────────────────────
+        // Cols: No | Name | Phone | Last Txn Date | Outstanding
+        const COL = [10, 62, 36, 32, 46];
+        const CX  = [ML];
+        for (let k = 0; k < COL.length-1; k++) CX.push(CX[k]+COL[k]);
+        const ROW_H = 8;
+
+        function drawHeader() {
+          const hdrs = ['No.', 'Client Name', 'Phone', 'Last Invoice', 'Outstanding'];
+          doc.setFillColor(48,54,79);
+          doc.rect(ML, y, CW, ROW_H, 'F');
+          const aligns = ['C','L','L','C','R'];
+          for (let k = 0; k < COL.length; k++) {
+            doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(255,255,255);
+            const mid = y + ROW_H/2 + 1.8;
+            if (aligns[k]==='C') doc.text(hdrs[k], CX[k]+COL[k]/2, mid, {align:'center'});
+            else if (aligns[k]==='R') doc.text(hdrs[k], CX[k]+COL[k]-2, mid, {align:'right'});
+            else doc.text(hdrs[k], CX[k]+2, mid);
+          }
+          y += ROW_H;
+        }
+
+        drawHeader();
+
+        allClients.forEach(function(c, idx) {
+          if (y + ROW_H > 277) { doc.addPage(); y = 15; drawHeader(); }
+
+          // Last invoice date
+          const purchases = c.purchases || [];
+          let lastDate = '—';
+          if (purchases.length > 0) {
+            lastDate = purchases[purchases.length - 1].date || '—';
+          }
+
+          const bg = idx % 2 === 0 ? [255,255,255] : [247,250,255];
+          doc.setFillColor(...bg);
+          doc.setDrawColor(220,220,220); doc.setLineWidth(0.1);
+          doc.rect(ML, y, CW, ROW_H, 'FD');
+
+          doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(0,0,0);
+          const mid = y + ROW_H/2 + 1.8;
+
+          // No.
+          doc.text(String(idx+1), CX[0]+COL[0]/2, mid, {align:'center'});
+          // Name
+          doc.text(doc.splitTextToSize(c.name || '—', COL[1]-4)[0], CX[1]+2, mid);
+          // Phone
+          doc.text(c.phone || '—', CX[2]+2, mid);
+          // Last invoice date
+          doc.text(lastDate, CX[3]+COL[3]/2, mid, {align:'center'});
+          // Outstanding
+          const amt = c.outstanding || 0;
+          if (amt > 0) {
+            doc.setFont('helvetica','bold'); doc.setTextColor(185,28,28);
+          } else {
+            doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80);
+          }
+          doc.text(pdfINR(amt), CX[4]+COL[4]-2, mid, {align:'right'});
+
+          y += ROW_H;
+        });
+
+        // ── Total row ────────────────────────────────────────────
+        y += 1;
+        doc.setLineWidth(0.4); doc.setDrawColor(0,0,0); doc.line(ML, y, ML+CW, y); y += 1;
+        doc.setFillColor(48,54,79); doc.rect(ML, y, CW, 10, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(255,255,255);
+        doc.text('TOTAL OUTSTANDING', ML+4, y+6.5);
+        doc.text(pdfINR(totalOutstanding), ML+CW-3, y+6.5, {align:'right'});
+
+        const filename = 'DM_BEADS_All_Clients_' + todayStr.replace(/\//g,'-') + '.pdf';
+        showPDFModal(doc, filename, null, 'All Clients — ' + todayStr, null);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '&#128438;&nbsp; Print All Clients';
+      }
+    }
+
+    function exportCSV() {
+      function parseDMY(str) {
+        if (!str) return null;
+        const parts = str.split('/');
+        if (parts.length !== 3) return null;
+        const dt = new Date(parseInt(parts[2],10), parseInt(parts[1],10)-1, parseInt(parts[0],10));
+        return isNaN(dt.getTime()) ? null : dt;
+      }
+      function fmtDMY(dt) {
+        return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
+      }
+
+      const rows = [['Client Name','Phone','Balance','Last Activity Date']];
+      let totalOutstanding = 0;
+
+      allClients.forEach(function (c) {
+        const dates = [].concat(
+          (c.purchases || []).map(function (p) { return parseDMY(p.date); }),
+          (c.payments  || []).map(function (p) { return parseDMY(p.date); })
+        ).filter(Boolean);
+        const lastDateStr = dates.length ? fmtDMY(new Date(Math.max.apply(null, dates))) : '';
+
+        const outstanding = c.outstanding || 0;
+        totalOutstanding += outstanding;
+        const balanceStr = outstanding === 0 ? 'Zero Balance' : fmtINR(outstanding);
+
+        rows.push([c.name||'', c.phone||'', balanceStr, lastDateStr]);
+      });
+
+      rows.push(['', '', '', '']);
+      rows.push(['TOTAL OUTSTANDING', '', fmtINR(totalOutstanding), '']);
+
+      const csv = rows.map(function(r){ return r.map(function(cell){ const s=String(cell); return s.includes(',')||s.includes('"')||s.includes('\n') ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(','); }).join('\r\n');
+      const blob = new Blob(['﻿'+csv], { type:'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const now = new Date();
+      a.download = 'radhe-material-outstanding-' + now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + '.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }
+
+    function showToast(message) {
+      const prev = document.getElementById('app-toast');
+      if (prev) prev.remove();
+      const t = document.createElement('div');
+      t.id = 'app-toast';
+      t.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);' +
+        'background:#30364F;color:#fff;padding:13px 22px;border-radius:10px;font-size:0.86rem;' +
+        'font-weight:600;z-index:99999;box-shadow:0 4px 24px rgba(0,0,0,0.35);max-width:88vw;' +
+        'text-align:center;line-height:1.45;transition:opacity 0.35s;';
+      t.textContent = message;
+      document.body.appendChild(t);
+      setTimeout(function () { t.style.opacity = '0'; setTimeout(function () { if (t.parentNode) t.remove(); }, 380); }, 5000);
+    }
+
+    function showPDFModal(doc, filename, whatsappURL, title, billData) {
+      const existing = document.getElementById('pdf-modal-overlay');
+      if (existing) existing.remove();
+
+      const blobUrl = doc.output('bloburl');
+
+      const overlay = document.createElement('div');
+      overlay.id = 'pdf-modal-overlay';
+      overlay.innerHTML =
+        '<div class="pdf-modal">' +
+          '<div class="pdf-modal-header">' +
+            '<span class="pdf-modal-title">' + (title || filename) + '</span>' +
+            '<button class="pdf-modal-close" aria-label="Close">&times;</button>' +
+          '</div>' +
+          '<div class="pdf-modal-body">' +
+            '<iframe class="pdf-iframe" src="' + blobUrl + '" title="PDF preview"></iframe>' +
+          '</div>' +
+          '<div class="pdf-modal-footer">' +
+            '<button class="btn-modal-download">&#8595;&nbsp; Download PDF</button>' +
+            (whatsappURL ? '<button class="btn-modal-whatsapp">' : '<span style="display:none">') +
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0">' +
+                '<path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15' +
+                '-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475' +
+                '-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52' +
+                '.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207' +
+                '-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372' +
+                '-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2' +
+                ' 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719' +
+                ' 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>' +
+                '<path d="M12 0C5.373 0 0 5.373 0 12c0 2.122.558 4.112 1.528 5.832L0 24l6.335-1.508' +
+                'A11.954 11.954 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818' +
+                'a9.818 9.818 0 01-5.006-1.374l-.36-.214-3.733.888.935-3.618-.235-.372' +
+                'A9.818 9.818 0 1112 21.818z"/>' +
+              '</svg>' +
+              'Send on WhatsApp' +
+            (whatsappURL ? '</button>' : '</span>') +
+            (whatsappURL ? '<button class="btn-modal-share">&#8679;&nbsp; Share bill image</button>' : '') +
+          '</div>' +
+        '</div>';
+
+      document.body.appendChild(overlay);
+
+      function closeModal() {
+        overlay.remove();
+        URL.revokeObjectURL(blobUrl);
+      }
+
+      overlay.querySelector('.pdf-modal-close').addEventListener('click', closeModal);
+      overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) closeModal();
+      });
+      document.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Escape') { closeModal(); document.removeEventListener('keydown', onKey); }
+      });
+
+      overlay.querySelector('.btn-modal-download').addEventListener('click', function () {
+        doc.save(filename);
+      });
+
+      const waBtn = overlay.querySelector('.btn-modal-whatsapp');
+      if (waBtn) waBtn.addEventListener('click', async function () {
+        // Try to copy bill image to clipboard so user can paste in WhatsApp
+        if (billData && typeof ClipboardItem !== 'undefined' && navigator.clipboard && navigator.clipboard.write) {
+          const origHTML = waBtn.innerHTML;
+          waBtn.disabled = true;
+          waBtn.textContent = 'Copying image…';
+          try {
+            const canvas = await generateBillImage(billData);
+            const blob   = await new Promise(function (res) { canvas.toBlob(res, 'image/png'); });
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            showToast('Bill image copied! Open WhatsApp, tap the message box, then paste (Ctrl+V or long-press → Paste).');
+          } catch (e) {
+            // Clipboard not permitted — proceed silently
+          } finally {
+            waBtn.disabled  = false;
+            waBtn.innerHTML = origHTML;
+          }
+        }
+        if (whatsappURL) window.open(whatsappURL, '_blank', 'noopener');
+      });
+
+      // ── Share bill image ──
+      const shareBtn = overlay.querySelector('.btn-modal-share');
+      if (!shareBtn) return;
+      shareBtn.addEventListener('click', async function () {
+        if (!billData) { alert('Image data not available.'); return; }
+        shareBtn.disabled    = true;
+        shareBtn.textContent = 'Generating…';
+
+        try {
+          const canvas      = await generateBillImage(billData);
+          const imgFilename = filename.replace(/\.pdf$/i, '') + '.png';
+          const file        = await new Promise(function (res) {
+            canvas.toBlob(function (blob) {
+              res(new File([blob], imgFilename, { type: 'image/png' }));
+            }, 'image/png');
+          });
+
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            // Native share sheet — works on Android Chrome, iOS Safari
+            try {
+              await navigator.share({ files: [file], title: title || filename });
+            } catch (e) {
+              if (e.name !== 'AbortError') {
+                // Share failed (not user-cancelled) → fall back
+                triggerDownloadPNG(canvas, imgFilename);
+                setTimeout(function () { window.open(whatsappURL, '_blank', 'noopener'); }, 700);
+              }
+            }
+          } else {
+            // Desktop / unsupported: download image + open WhatsApp text
+            triggerDownloadPNG(canvas, imgFilename);
+            setTimeout(function () { window.open(whatsappURL, '_blank', 'noopener'); }, 700);
+          }
+        } catch (err) {
+          alert('Image generation failed: ' + err.message);
+        } finally {
+          shareBtn.disabled    = false;
+          shareBtn.innerHTML   = '&#8679;&nbsp; Share bill image';
+        }
+      });
+    }
+
+    // ─────────────────────────────────────────────
+    // Payment receipt PDF
+    // ─────────────────────────────────────────────
+    async function generateReceiptPDF(client, payment, remainingAfter) {
+      const { jsPDF } = window.jspdf;
+      // 8 x 5.5in (203.2 x 139.7mm) — a bit smaller than exact half-A4 so
+      // there's manual print/cut margin when stacking two per A4 sheet.
+      const PW = 203.2, PH = 139.7;
+      const ML = 12, MR = 12;
+      const CW = PW - ML - MR;
+
+      const C = {
+        blueDark:   [48,  54,  79],
+        blueMid:    [75,  87,  115],
+        blueLight:  [228, 232, 236],
+        green:      [22,  163, 74],
+        greenLight: [220, 252, 231],
+        white:      [255, 255, 255],
+        grayText:   [55,  65,  81],
+        grayMuted:  [107, 114, 128],
+        lineGray:   [209, 213, 219],
+      };
+
+      const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'l' });
+      function fill(c)   { doc.setFillColor(...c); }
+      function draw(c)   { doc.setDrawColor(...c); }
+      function tcolor(c) { doc.setTextColor(...c); }
+
+      const logoData = await loadImageAsBase64(LOGO_URL);
+
+      // ── Header band ──
+      const bandH = 20;
+      fill(C.blueDark);
+      doc.rect(0, 0, PW, bandH, 'F');
+
+      if (logoData) {
+        const logoSize = 9;
+        doc.addImage(logoData, 'PNG', (PW - logoSize) / 2, 2, logoSize, logoSize);
+      } else {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        tcolor(C.white);
+        doc.text('RADHE MATERIAL', PW / 2, 12, { align: 'center' });
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      tcolor(C.white);
+      doc.text('PAYMENT RECEIPT', PW / 2, bandH - 3, { align: 'center' });
+
+      let y = bandH + 6;
+
+      // ── "Received from" bar ──
+      fill(C.blueLight);
+      doc.rect(ML, y - 4, CW, 8, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      tcolor(C.grayMuted);
+      doc.text('Received from:', ML + 2.5, y + 1.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      tcolor(C.blueDark);
+      doc.text(client.name || client.phone, ML + 30, y + 1.5);
+      y += 10;
+
+      // ── Big amount box ──
+      fill(C.greenLight);
+      draw(C.green);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(ML, y, CW, 16, 2.5, 2.5, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      tcolor(C.green);
+      doc.text('AMOUNT PAID', PW / 2, y + 6, { align: 'center' });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      tcolor(C.green);
+      doc.text(pdfINR(payment.amount || 0), PW / 2, y + 13, { align: 'center' });
+      y += 19;
+
+      // ── Detail rows ──
+      function detailRow(label, value) {
+        draw(C.lineGray);
+        doc.setLineWidth(0.15);
+        doc.line(ML, y + 4.5, ML + CW, y + 4.5);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        tcolor(C.grayMuted);
+        doc.text(label, ML, y);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        tcolor(C.grayText);
+        doc.text(value, ML + CW, y, { align: 'right' });
+        y += 7;
+      }
+
+      detailRow('Payment Date',  payment.date || '—');
+      detailRow('Client Name',   client.name  || '—');
+      detailRow('Phone Number',  client.phone || '—');
+      detailRow('Paid To',       'RADHE MATERIAL');
+      detailRow('Address',       'P-775, NEW GIDC, KATARGAM, SURAT, PIN: 395004');
+      y += 2;
+
+      // ── Remaining balance ──
+      fill(remainingAfter === 0 ? C.greenLight : C.blueLight);
+      draw(remainingAfter === 0 ? C.green : C.blueDark);
+      doc.setLineWidth(0.35);
+      doc.roundedRect(ML, y, CW, 9, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      tcolor(remainingAfter === 0 ? C.green : C.blueDark);
+      doc.text('Remaining Balance', ML + 3, y + 6);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.text(
+        remainingAfter === 0 ? 'FULLY SETTLED' : pdfINR(remainingAfter),
+        ML + CW - 3, y + 6, { align: 'right' }
+      );
+      y += 12;
+
+      // ── Gujarati notice ──
+      const gujNotice = await buildGujaratiNoticeImage(CW, 2.6);
+      doc.addImage(gujNotice.dataUrl, 'PNG', ML, y, CW, gujNotice.heightMm);
+      y += gujNotice.heightMm + 3;
+
+      // ── Signature area ──
+      const sigX2 = ML + CW;
+      const sigX1 = sigX2 - 45;
+      draw(C.grayMuted);
+      doc.setLineWidth(0.3);
+      doc.line(sigX1, y, sigX2, y);
+      y += 4;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      tcolor(C.grayMuted);
+      doc.text('Authorised Signature', sigX2, y, { align: 'right' });
+      doc.setFont('helvetica', 'bold');
+      tcolor(C.blueDark);
+      doc.text('RADHE MATERIAL', sigX2, y + 3.5, { align: 'right' });
+
+      // ── Footer ──
+      const footY = PH - 8;
+      draw(C.lineGray);
+      doc.setLineWidth(0.3);
+      doc.line(ML, footY, ML + CW, footY);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      tcolor(C.grayMuted);
+      doc.text('This is a computer-generated payment receipt.', ML,      footY + 4);
+      doc.text('RADHE MATERIAL',                                     PW - MR, footY + 4, { align: 'right' });
+
+      const safeDate  = (payment.date || 'receipt').replace(/\//g, '-');
+      const rcptFile  = 'RCPT-' + (client.phone || 'client') + '-' + safeDate + '.pdf';
+      const rcptMsg   = 'Hello ' + (client.name || 'there') + ', your payment of ' +
+        fmtINR(payment.amount || 0) + ' has been received on ' + (payment.date || 'today') +
+        '.\nRemaining balance: ' + fmtINR(remainingAfter) +
+        '.\nThank you!\n- RADHE MATERIAL';
+      const rcptWA    = buildWhatsAppURL(client.phone, rcptMsg);
+      const rcptBill  = {
+        type: 'receipt', title: 'PAYMENT RECEIPT',
+        clientName: client.name || '', clientPhone: client.phone || '',
+        paymentDate: payment.date || '', amountPaid: payment.amount || 0,
+        remainingAfter: remainingAfter
+      };
+      showPDFModal(doc, rcptFile, rcptWA, 'Payment Receipt — ' + (client.name || client.phone), rcptBill);
+    }
+
+    async function downloadPDF() {
+      const btn = document.getElementById('btn-pdf');
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+
+      try {
+        const { jsPDF } = window.jspdf;
+
+        // ── Page constants ──
+        // 8 x 5.5in (203.2 x 139.7mm) — a bit smaller than exact half-A4 so
+        // there's manual print/cut margin when stacking two per A4 sheet.
+        // Margins are tightened (not the 180mm table width) to fit the narrower page.
+        const PW = 203.2, PH = 139.7;
+        const ML = 11.6, MR = 11.6;
+        const CW = PW - ML - MR;
+
+        const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'l' });
+        doc.setDrawColor(0, 0, 0);
+        doc.setTextColor(0, 0, 0);
+
+        const SELLER_NAME = 'RADHE MATERIAL';
+        const SELLER_ADDR = 'P-775, NEW GIDC, KATARGAM, SURAT, PIN: 395004';
+
+        // ── Collect form data ──
+        const clientName  = document.getElementById('client-name').value.trim()  || 'Client';
+        const clientPhone = document.getElementById('client-phone').value.trim() || '';
+        const invNumber   = document.getElementById('inv-number').value;
+        const invDate     = document.getElementById('inv-date').value;
+
+        const lineItems = [];
+        document.querySelectorAll('#items-body tr').forEach(function (tr) {
+          const service  = tr.querySelector('.item-service').value.trim();
+          const unit     = tr.querySelector('.item-unit').value.trim().toUpperCase();
+          const qtyStr   = tr.querySelector('.item-qty').value.trim();
+          const rateStr  = tr.querySelector('.item-rate').value.trim();
+          const qty      = parseFloat(qtyStr)  || 0;
+          const rate     = parseFloat(rateStr) || 0;
+          if (service || qty || rate) {
+            lineItems.push({
+              service: service || '—', unit: unit || '',
+              qty, qtyDisplay: qtyStr,
+              rate, rateDisplay: rateStr,
+              amount: qty * rate,
+            });
+          }
+        });
+
+        const grandTotal = lineItems.reduce(function (s, r) { return s + r.amount; }, 0);
+        const roundOff   = Math.round(grandTotal) - grandTotal;
+        const totalAmt   = Math.round(grandTotal);
+        const qtyTotal   = lineItems.reduce(function (s, r) { return s + (r.qty || 0); }, 0);
+
+        // ── Load logo ──
+        const logoData = await loadImageAsBase64(LOGO_URL);
+
+        // ── Helper: draw bordered cell with text ──
+        const LW = 0.3;
+        function cellRect(x, y, w, h, fillColor) {
+          doc.setLineWidth(LW);
+          if (fillColor) {
+            doc.setFillColor(...fillColor);
+            doc.rect(x, y, w, h, 'FD');
+          } else {
+            doc.rect(x, y, w, h);
+          }
+        }
+        function cellText(x, y, w, h, text, fontStyle, fontSize, align) {
+          if (!text && text !== 0) return;
+          const fs = fontSize || 9;
+          doc.setFont('helvetica', fontStyle || 'normal');
+          doc.setFontSize(fs);
+          doc.setTextColor(0,0,0);
+          const mid = y + h / 2 + fs * 0.2;
+          if (align === 'R') {
+            doc.text(String(text), x + w - 2, mid, { align: 'right' });
+          } else if (align === 'C') {
+            doc.text(String(text), x + w / 2, mid, { align: 'center' });
+          } else {
+            doc.text(String(text), x + 2, mid);
+          }
+        }
+
+        let y = 5;
+        const topY = y;
+
+        // ──────────────────────────────────────────────
+        // HEADER — Logo + RADHE MATERIAL + Address + INVOICE
+        // ──────────────────────────────────────────────
+        const logoSz = 15;
+        if (logoData) {
+          doc.addImage(logoData, 'PNG', (PW - logoSz) / 2, y, logoSz, logoSz);
+          y += logoSz + 5;
+        } else {
+          y += 3;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text(SELLER_NAME, PW / 2, y, { align: 'center' });
+        y += 4;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        doc.text(SELLER_ADDR, PW / 2, y, { align: 'center' });
+        y += 4.5;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text('INVOICE', PW / 2, y, { align: 'center' });
+        const invLabelW = doc.getTextWidth('INVOICE');
+        doc.setLineWidth(0.5);
+        doc.line(PW/2 - invLabelW/2, y + 0.6, PW/2 + invLabelW/2, y + 0.6);
+        y += 4;
+
+        // top outer border
+        doc.setLineWidth(0.5);
+        doc.line(ML, topY, ML + CW, topY);
+
+        // ──────────────────────────────────────────────
+        // TO section + Inv No / Date
+        // ──────────────────────────────────────────────
+        doc.setLineWidth(0.5);
+        doc.line(ML, y, ML + CW, y);
+        const splitX = ML + 108;
+        const toH    = 11;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('TO,   ' + clientName, ML + 2, y + 4.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        if (clientPhone) doc.text('Ph: ' + clientPhone, ML + 2, y + 8.3);
+
+        doc.setLineWidth(0.3);
+        doc.line(splitX, y, splitX, y + toH);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text('Inv. No  :-', splitX + 3, y + 4);
+        doc.setFont('helvetica', 'bold');
+        doc.text(invNumber, splitX + 32, y + 4);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Date  :-', splitX + 3, y + 8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(invDate, splitX + 32, y + 8);
+
+        y += toH;
+        doc.setLineWidth(0.5);
+        doc.line(ML, y, ML + CW, y);
+
+        // ──────────────────────────────────────────────
+        // Items table
+        // ──────────────────────────────────────────────
+        // Column widths: Sr(10) Desc(68) Unit(18) Qty(22) Rate(28) Amt(34) = 180
+        const COL = [10, 68, 18, 22, 28, 34];
+        const CX  = [ML];
+        for (let k = 0; k < COL.length - 1; k++) CX.push(CX[k] + COL[k]);
+        const HDRS   = ['Sr\nNo', 'Description', 'Unit', 'Qty', 'Rate', 'Amount'];
+        const ALIGNS = ['C', 'C', 'C', 'C', 'C', 'C'];
+        const ROW_H  = 4.6;
+
+        // Table header row
+        for (let k = 0; k < COL.length; k++) {
+          cellRect(CX[k], y, COL[k], ROW_H, [224, 224, 224]);
+          const lines = HDRS[k].split('\n');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(6);
+          doc.setTextColor(0,0,0);
+          if (lines.length > 1) {
+            doc.text(lines[0], CX[k] + COL[k]/2, y + 1.9, { align: 'center' });
+            doc.text(lines[1], CX[k] + COL[k]/2, y + 3.9, { align: 'center' });
+          } else {
+            doc.text(lines[0], CX[k] + COL[k]/2, y + ROW_H/2 + 1.2, { align: 'center' });
+          }
+        }
+        y += ROW_H;
+
+        // Item rows (minimum 10)
+        const MIN_ROWS = 10;
+        const totalRows = Math.max(lineItems.length, MIN_ROWS);
+
+        for (let i = 0; i < totalRows; i++) {
+          const row = i < lineItems.length ? lineItems[i] : null;
+          const bg  = i % 2 === 1 ? [250,250,250] : [255,255,255];
+          for (let k = 0; k < COL.length; k++) {
+            cellRect(CX[k], y, COL[k], ROW_H, bg);
+            if (row) {
+              let txt = '', al = 'L';
+              switch (k) {
+                case 0: txt = String(i+1); al = 'C'; break;
+                case 1:
+                  doc.setFont('helvetica', 'normal');
+                  doc.setFontSize(6.5);
+                  doc.setTextColor(0,0,0);
+                  const desc = doc.splitTextToSize(row.service, COL[1] - 4)[0];
+                  doc.text(desc, CX[1] + 2, y + ROW_H/2 + 1.2);
+                  continue;
+                case 2: txt = row.unit || ''; al = 'C'; break;
+                case 3: txt = row.qty > 0 ? (row.qtyDisplay || smartNum(row.qty)) : ''; al = 'R'; break;
+                case 4: txt = row.rate > 0 ? (row.rateDisplay || smartNum(row.rate)) : ''; al = 'R'; break;
+                case 5: txt = row.amount > 0 ? row.amount.toFixed(1) : ''; al = 'R'; break;
+              }
+              cellText(CX[k], y, COL[k], ROW_H, txt, 'normal', 6.5, al);
+            }
+          }
+          y += ROW_H;
+        }
+
+        // Qty total row
+        for (let k = 0; k < COL.length; k++) {
+          cellRect(CX[k], y, COL[k], ROW_H, [240,240,240]);
+          if (k === 3 && qtyTotal > 0) {
+            cellText(CX[k], y, COL[k], ROW_H, qtyTotal.toFixed(2), 'bold', 6.5, 'R');
+          }
+        }
+        y += ROW_H;
+
+        // ──────────────────────────────────────────────
+        // Footer — Amount in words + Basic/RoundOff/Total
+        // ──────────────────────────────────────────────
+        doc.setLineWidth(0.5);
+        doc.line(ML, y, ML + CW, y);
+
+        const AMT_ROW_H = 5.2;
+        const footSplitX = ML + 108;
+
+        // Amount in words (left)
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6);
+        doc.setTextColor(0,0,0);
+        const wordLines = doc.splitTextToSize(amountInWords(grandTotal), 104);
+        doc.text(wordLines, ML + 2, y + 4.2);
+
+        // Vertical divider for footer
+        const footH = AMT_ROW_H * 3;
+        doc.setLineWidth(0.3);
+        doc.line(footSplitX, y, footSplitX, y + footH + 1);
+
+        // Basic Amount
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        doc.text('Basic Amount  :-', footSplitX + 3, y + AMT_ROW_H/2 + 1.3);
+        doc.text(grandTotal.toFixed(1), ML + CW - 2, y + AMT_ROW_H/2 + 1.3, { align: 'right' });
+        doc.setLineWidth(0.2);
+        doc.line(footSplitX, y + AMT_ROW_H, ML + CW, y + AMT_ROW_H);
+
+        // Round Off
+        const roundOffTxt = roundOff === 0 ? '-' : (roundOff > 0 ? '+' : '') + roundOff.toFixed(1);
+        doc.text('Round Off  :-', footSplitX + 3, y + AMT_ROW_H + AMT_ROW_H/2 + 1.3);
+        doc.text(roundOffTxt, ML + CW - 2, y + AMT_ROW_H + AMT_ROW_H/2 + 1.3, { align: 'right' });
+        doc.line(footSplitX, y + AMT_ROW_H*2, ML + CW, y + AMT_ROW_H*2);
+
+        // Total Amount
+        doc.setFont('helvetica', 'bold');
+        doc.text('Total Amount  :-', footSplitX + 3, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.3);
+        doc.text(totalAmt.toFixed(1), ML + CW - 2, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.3, { align: 'right' });
+
+        y += footH + 1;
+
+        // ──────────────────────────────────────────────
+        // Remark + E&OE
+        // ──────────────────────────────────────────────
+        doc.setLineWidth(0.4);
+        doc.line(ML, y, ML + CW, y);
+
+        const remarkColW = footSplitX - ML - 4;
+        const gujNotice  = await buildGujaratiNoticeImage(remarkColW, 2.3);
+        const remarkH    = Math.max(10, 5 + gujNotice.heightMm + 2);
+        doc.line(footSplitX, y, footSplitX, y + remarkH);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text('Remark  :-', ML + 2, y + 3.8);
+        doc.addImage(gujNotice.dataUrl, 'PNG', ML + 2, y + 5, remarkColW, gujNotice.heightMm);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6);
+        doc.text('E&OE', ML + CW - 2, y + 4, { align: 'right' });
+        doc.setFont('helvetica', 'bold');
+        doc.text('For ' + SELLER_NAME, ML + CW - 2, y + 8, { align: 'right' });
+
+        y += remarkH;
+
+        // Outer border
+        doc.setLineWidth(0.5);
+        doc.line(ML, y, ML + CW, y);  // bottom
+        doc.line(ML, topY, ML, y);        // left
+        doc.line(ML + CW, topY, ML + CW, y); // right
+
+        const invMsg  = 'Hello ' + clientName + ', here is your Sale Invoice from RADHE MATERIAL.' +
+          '\nInvoice No: ' + invNumber +
+          '\nDate: ' + invDate +
+          '\nTotal Amount: Rs.' + totalAmt.toFixed(2) +
+          '\nThank you!';
+        const invWA   = buildWhatsAppURL(clientPhone, invMsg);
+        const invBill = {
+          type: 'invoice', title: 'INVOICE',
+          clientName, clientPhone, invNumber, invDate, lineItems, grandTotal
+        };
+        showPDFModal(doc, invNumber + '.pdf', invWA, 'Invoice — ' + invNumber, invBill);
+
+      } catch (err) {
+        alert('PDF generation failed: ' + err.message);
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '&#8595; Download PDF Invoice';
+      }
+    }
+
+    document.getElementById('btn-pdf').addEventListener('click', downloadPDF);
+
+    // ─────────────────────────────────────────────
+    // Grand total helper (reads live form values)
+    // ─────────────────────────────────────────────
+    function computeGrandTotal() {
+      let subtotal = 0;
+      document.querySelectorAll('#items-body tr').forEach(function (tr) {
+        subtotal += (parseFloat(tr.querySelector('.item-qty').value)  || 0) *
+                    (parseFloat(tr.querySelector('.item-rate').value) || 0);
+      });
+      return subtotal;
+    }
+
+    // Consume (increment + store) the current invoice counter and return the number used
+    function consumeInvoiceNumber() {
+      const fy  = getFinancialYear();
+      const key = `inv_counter_${fy}`;
+      const n   = parseInt(localStorage.getItem(key) || '0') + 1;
+      localStorage.setItem(key, n);
+      return `INV-${fy}-${String(n).padStart(3, '0')}`;
+    }
+
+    // ─────────────────────────────────────────────
+    // Ledger — Supabase read/write
+    // ─────────────────────────────────────────────
+    let allClients = []; // cache for search filtering
+
+    // Save current invoice as a purchase under the client's phone-number key
+    async function saveToLedger() {
+      const phone      = document.getElementById('client-phone').value.trim();
+      const clientName = document.getElementById('client-name').value.trim();
+
+      if (!phone)               { alert('Enter the client phone number before saving.'); return; }
+      if (!/^\d{10}$/.test(phone)) { alert('Phone number must be exactly 10 digits.'); return; }
+
+      const grandTotal = computeGrandTotal();
+      if (grandTotal <= 0) { alert('Add at least one line item before saving.'); return; }
+
+      const btn = document.getElementById('btn-save-ledger');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      try {
+        const invNo   = document.getElementById('inv-number').value;
+        const invDate = document.getElementById('inv-date').value;
+
+        // Check if this client already has a row
+        const { data: existing, error: fetchErr } = await db
+          .from('ledger')
+          .select('client')
+          .eq('code', workspaceCode)
+          .eq('client_key', phone)
+          .maybeSingle();
+
+        if (fetchErr) throw fetchErr;
+
+        // Collect line items for storage so invoices can be reprinted later
+        const savedItems = [];
+        document.querySelectorAll('#items-body tr').forEach(function (tr) {
+          const service = tr.querySelector('.item-service').value.trim();
+          const unit    = tr.querySelector('.item-unit').value.trim().toUpperCase();
+          const qtyStr  = tr.querySelector('.item-qty').value.trim();
+          const rateStr = tr.querySelector('.item-rate').value.trim();
+          const qty     = parseFloat(qtyStr)  || 0;
+          const rate    = parseFloat(rateStr) || 0;
+          if (service || qty || rate) {
+            savedItems.push({ service: service||'—', unit: unit||'', qty, qtyDisplay: qtyStr, rate, rateDisplay: rateStr, amount: qty*rate });
+          }
+        });
+
+        const newPurchase = { invoiceNo: invNo, date: invDate, grandTotal, lineItems: savedItems };
+
+        if (existing) {
+          // Append to existing client
+          const updated = Object.assign({}, existing.client, {
+            purchases: (existing.client.purchases || []).concat(newPurchase)
+          });
+          const { error: updErr } = await db
+            .from('ledger')
+            .update({ client: updated })
+            .eq('code', workspaceCode)
+            .eq('client_key', phone);
+          if (updErr) throw updErr;
+        } else {
+          // Create new client row
+          const newClient = {
+            name:      clientName || 'Unknown',
+            phone,
+            purchases: [newPurchase]
+          };
+          const { error: insErr } = await db
+            .from('ledger')
+            .insert({ code: workspaceCode, client_key: phone, client: newClient });
+          if (insErr) throw insErr;
+        }
+
+        // Advance the invoice counter; update displayed number to next value
+        consumeInvoiceNumber();
+        document.getElementById('inv-number').value = peekInvoiceNumber();
+
+        await loadClients();
+        alert('Saved! Invoice ' + invNo + ' added to ' + (clientName || phone) + '\'s ledger.');
+
+      } catch (err) {
+        alert('Save failed: ' + err.message);
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '&#8679; Save to Ledger';
+      }
+    }
+
+    document.getElementById('btn-save-ledger').addEventListener('click', saveToLedger);
+
+    // ── Load all clients for this workspace from Supabase ──
+    async function loadClients() {
+      const { data, error } = await db
+        .from('ledger')
+        .select('client_key, client')
+        .eq('code', workspaceCode);
+
+      if (error) { console.error('loadClients:', error); return; }
+
+      allClients = (data || []).map(function (row) {
+        const purchases   = row.client.purchases || [];
+        const payments    = row.client.payments  || [];
+        const totalBilled = purchases.reduce(function (s, p) { return s + (p.grandTotal || 0); }, 0);
+        const totalPaid   = payments.reduce(function (s, p)  { return s + (p.amount   || 0); }, 0);
+        const outstanding = Math.max(0, totalBilled - totalPaid);
+        return Object.assign({}, row.client, { phone: row.client_key, outstanding });
+      });
+
+      // Sort alphabetically by name
+      allClients.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+
+      renderClientList(allClients);
+      renderClientNameSuggestions(allClients);
+    }
+
+    // ── Populate the Client Name autocomplete list from saved clients ──
+    function renderClientNameSuggestions(clients) {
+      const list = document.getElementById('client-name-list');
+      list.innerHTML = clients
+        .filter(function (c) { return c.name; })
+        .map(function (c) { return '<option value="' + c.name.replace(/"/g, '&quot;') + '"></option>'; })
+        .join('');
+    }
+
+    // When the typed name matches a saved client exactly (e.g. picked from the
+    // suggestion list), auto-fill their phone number so it isn't retyped.
+    document.getElementById('client-name').addEventListener('input', function () {
+      const typed = this.value.trim().toLowerCase();
+      if (!typed) return;
+      const match = allClients.find(function (c) { return (c.name || '').trim().toLowerCase() === typed; });
+      const phoneField = document.getElementById('client-phone');
+      if (match && !phoneField.value.trim()) {
+        phoneField.value = match.phone || '';
+      }
+    });
+
+    // ── Render the flat client list ──
+    // Fill the invoice form (left side) with a client's name, phone, and last invoice's line items
+    function loadClientIntoForm(client) {
+      document.getElementById('client-name').value  = client.name  || '';
+      document.getElementById('client-phone').value = client.phone || '';
+
+      // Find the most recent stored invoice that has line items
+      const purchases = (client.purchases || []).slice().reverse();
+      const lastWithItems = purchases.find(function (p) { return p.lineItems && p.lineItems.length; });
+      const items = lastWithItems ? lastWithItems.lineItems : [];
+
+      // Clear all existing rows
+      while (tbody.rows.length > 0) tbody.deleteRow(0);
+
+      if (items.length === 0) {
+        addRow(); // one blank row if no stored items
+      } else {
+        items.forEach(function (item) {
+          const tr = createItemRow();
+          tbody.appendChild(tr);
+          tr.querySelector('.item-service').value = (item.service === '—' ? '' : item.service) || '';
+          tr.querySelector('.item-unit').value    = item.unit || 'KG';
+          tr.querySelector('.item-qty').value     = item.qtyDisplay  || (item.qty  > 0 ? item.qty  : '');
+          tr.querySelector('.item-rate').value    = item.rateDisplay || (item.rate > 0 ? item.rate : '');
+          // Trigger recalc so the Amount cell updates
+          tr.querySelector('.item-qty').dispatchEvent(new Event('input'));
+        });
+      }
+      refreshDelButtons();
+    }
+
+    function renderClientList(clients) {
+      const listEl    = document.getElementById('client-list');
+      const totalBar  = document.getElementById('ledger-total-bar');
+      const totalAmt  = document.getElementById('ledger-total-amount');
+      const exportBtn = document.getElementById('btn-export-csv');
+      const printBtn  = document.getElementById('btn-print-all');
+
+      listEl.innerHTML = '';
+
+      if (clients.length === 0) {
+        listEl.innerHTML = '<div class="ledger-empty">No clients yet. Save an invoice to begin.</div>';
+        totalBar.style.display  = 'none';
+        exportBtn.style.display = 'none';
+        printBtn.style.display  = 'none';
+        return;
+      }
+
+      // Total outstanding across all clients
+      const total = clients.reduce(function (s, c) { return s + (c.outstanding || 0); }, 0);
+      totalAmt.textContent    = fmtINR(total);
+      totalBar.style.display  = 'flex';
+      exportBtn.style.display = 'block';
+      printBtn.style.display  = 'block';
+
+      clients.forEach(function (c) {
+        const item = document.createElement('div');
+        item.className = 'client-item';
+        item.dataset.phone = c.phone;
+        item.innerHTML =
+          '<div>' +
+            '<div class="ci-name">' + (c.name || c.phone) + '</div>' +
+            '<div class="ci-phone">' + c.phone + '</div>' +
+          '</div>' +
+          '<div class="ci-right">' +
+            '<div class="ci-amount">' + fmtINR(c.outstanding) + '</div>' +
+            '<button type="button" class="ci-delete" title="Delete client" aria-label="Delete client">' +
+              '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>' +
+                '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>' +
+                '<path d="M10 11v6"/><path d="M14 11v6"/>' +
+              '</svg>' +
+            '</button>' +
+          '</div>';
+        item.addEventListener('click', function () {
+          loadClientIntoForm(c);
+          showClientDetail(c);
+        });
+        item.querySelector('.ci-delete').addEventListener('click', function (e) {
+          e.stopPropagation();
+          deleteClient(c);
+        });
+        listEl.appendChild(item);
+      });
+    }
+
+    // ── Delete a client — only allowed once their outstanding balance is zero ──
+    async function deleteClient(client) {
+      if ((client.outstanding || 0) !== 0) {
+        alert(
+          'Cannot delete ' + (client.name || client.phone) + ' — outstanding balance is ' +
+          fmtINR(client.outstanding) + '. Clear the balance to ₹0 before deleting.'
+        );
+        return;
+      }
+
+      if (!confirm('Delete ' + (client.name || client.phone) + '? This permanently removes all their invoice and payment history.')) {
+        return;
+      }
+
+      const { error } = await db.from('ledger').delete()
+        .eq('code', workspaceCode).eq('client_key', client.phone);
+
+      if (error) { alert('Delete failed: ' + error.message); return; }
+
+      const activeItem = document.querySelector('.client-item.active');
+      if (activeItem && activeItem.dataset.phone === client.phone) {
+        document.getElementById('client-detail').style.display = 'none';
+      }
+
+      await loadClients();
+    }
+
+    // ── Show client detail with Record Payment flow ──
+    function showClientDetail(client) {
+      document.querySelectorAll('.client-item').forEach(function (el) {
+        el.classList.toggle('active', el.dataset.phone === client.phone);
+      });
+
+      const detailEl  = document.getElementById('client-detail');
+      const purchases = client.purchases || [];
+      const payments  = client.payments  || [];
+
+      const totalBilled = purchases.reduce(function (s, p) { return s + (p.grandTotal || 0); }, 0);
+      const totalPaid   = payments.reduce(function  (s, p) { return s + (p.amount   || 0); }, 0);
+      const remaining   = Math.max(0, totalBilled - totalPaid);
+
+      // ── Billing summary ──
+      const summaryHTML =
+        '<div class="billing-summary">' +
+          '<div class="billing-stat">' +
+            '<div class="bs-label">Total Billed</div>' +
+            '<div class="bs-amount">' + fmtINR(totalBilled) + '</div>' +
+          '</div>' +
+          '<div class="billing-stat">' +
+            '<div class="bs-label">Paid</div>' +
+            '<div class="bs-amount paid">' + fmtINR(totalPaid) + '</div>' +
+          '</div>' +
+          '<div class="billing-stat">' +
+            '<div class="bs-label">Remaining</div>' +
+            '<div class="bs-amount ' + (remaining === 0 ? 'settled' : 'remaining') + '">' +
+              fmtINR(remaining) + '</div>' +
+          '</div>' +
+        '</div>';
+
+      // ── Record Payment input row ──
+      const payInputHTML =
+        '<div class="payment-section-title">Record Payment</div>' +
+        '<div class="payment-input-row">' +
+          '<input type="number" id="payment-amt-input" placeholder="Amount paid (₹)" min="0" step="any" />' +
+          '<button class="btn-record" id="btn-record-payment">Record</button>' +
+        '</div>';
+
+      // ── Payment history ──
+      function buildPaymentHistory() {
+        if (!payments.length) return '';
+        return '<div class="payment-section-title">Payments Received</div>' +
+          '<div id="payment-hist-list">' +
+            payments.map(function (py, i) {
+              return '<div class="payment-hist-item" data-pidx="' + i + '">' +
+                '<div class="phi-left">' +
+                  '<div class="phi-date">' + (py.date || '—') + '</div>' +
+                  '<div class="phi-amt">' + fmtINR(py.amount || 0) + '</div>' +
+                '</div>' +
+                '<div class="phi-actions">' +
+                  '<button class="btn-receipt"     data-pidx="' + i + '">&#8595; Receipt</button>' +
+                  '<button class="btn-del-payment" data-pidx="' + i + '">Undo</button>' +
+                '</div>' +
+              '</div>';
+            }).join('') +
+          '</div>';
+      }
+
+      // ── Purchase table ──
+      function buildPurchaseRows() {
+        return purchases.map(function (p, i) {
+          return '<tr data-idx="' + i + '">' +
+            '<td>' + (p.invoiceNo || '—') + '</td>' +
+            '<td style="white-space:nowrap">' + (p.date || '—') + '</td>' +
+            '<td class="ptbl-amt">' + fmtINR(p.grandTotal || 0) + '</td>' +
+            '<td class="ptbl-actions">' +
+              '<button class="btn-pay-purch"    data-idx="' + i + '">Pay</button>' +
+              '<button class="btn-edit-purch"   data-idx="' + i + '">Edit</button>' +
+              '<button class="btn-del-purch"    data-idx="' + i + '">Del</button>' +
+            '</td>' +
+          '</tr>';
+        }).join('');
+      }
+
+      const purchaseTableHTML = purchases.length === 0
+        ? '<div class="ledger-empty" style="padding-top:6px;">No invoices on record.</div>'
+        : '<table class="purchase-tbl">' +
+            '<thead><tr><th>Invoice No</th><th>Date</th><th>Amount</th><th></th></tr></thead>' +
+            '<tbody id="purchase-tbody">' + buildPurchaseRows() + '</tbody>' +
+          '</table>';
+
+      // ── Assemble DOM ──
+      detailEl.innerHTML =
+        '<button class="detail-back" id="btn-back-list">&#8592; All Clients</button>' +
+        '<div class="detail-name">' + (client.name || client.phone) + '</div>' +
+        '<div class="detail-sub">Ph: ' + client.phone +
+          (client.gstin ? ' &nbsp;|&nbsp; GSTIN: ' + client.gstin : '') + '</div>' +
+        summaryHTML +
+        payInputHTML +
+        buildPaymentHistory() +
+        '<div class="purchases-section-header">' +
+          '<div class="purchases-section-title">Invoices</div>' +
+          (purchases.length > 0 || (client.clearedHistory && client.clearedHistory.length > 0) ? '<button class="btn-statement" id="btn-gen-statement">&#9112; Account Statement</button>' : '') +
+        '</div>' +
+        purchaseTableHTML;
+
+      detailEl.style.display = 'block';
+      document.getElementById('client-list').style.display        = 'none';
+      document.getElementById('client-search-wrap').style.display = 'none';
+
+      // ── Back to list ──
+      document.getElementById('btn-back-list').addEventListener('click', function () {
+        detailEl.style.display = 'none';
+        document.getElementById('client-list').style.display        = 'block';
+        document.getElementById('client-search-wrap').style.display = 'block';
+        document.querySelectorAll('.client-item').forEach(function (el) { el.classList.remove('active'); });
+      });
+
+      // ── Account Statement ──
+      const stmtBtn = document.getElementById('btn-gen-statement');
+      if (stmtBtn) {
+        stmtBtn.addEventListener('click', function () { showStatementDatePicker(client); });
+      }
+
+      // ── Record Payment ──
+      function getTodayDDMMYYYY() {
+        const d  = new Date();
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        return dd + '/' + mm + '/' + d.getFullYear();
+      }
+
+      async function doRecordPayment() {
+        const input  = document.getElementById('payment-amt-input');
+        const btn    = document.getElementById('btn-record-payment');
+        const amount = parseFloat(input.value);
+        if (!amount || amount <= 0) { alert('Enter a valid payment amount.'); return; }
+
+        const curRemaining = Math.max(0,
+          (client.purchases || []).reduce(function (s, p) { return s + (p.grandTotal || 0); }, 0) -
+          (client.payments  || []).reduce(function (s, p) { return s + (p.amount   || 0); }, 0)
+        );
+        if (amount > curRemaining && curRemaining > 0) {
+          const ok = confirm(
+            'Payment of ' + fmtINR(amount) + ' exceeds remaining balance of ' +
+            fmtINR(curRemaining) + '.\nRecord it anyway?'
+          );
+          if (!ok) return;
+        }
+
+        btn.disabled    = true;
+        btn.textContent = '…';
+
+        try {
+          const { data: fresh, error: fe } = await db.from('ledger').select('client')
+            .eq('code', workspaceCode).eq('client_key', client.phone).single();
+          if (fe) throw fe;
+
+          const newPayments = (fresh.client.payments || [])
+            .concat({ date: getTodayDDMMYYYY(), amount: amount });
+
+          const { error: ue } = await db.from('ledger')
+            .update({ client: Object.assign({}, fresh.client, { payments: newPayments }) })
+            .eq('code', workspaceCode).eq('client_key', client.phone);
+          if (ue) throw ue;
+
+          input.value = '';
+          await loadClients();
+          const updated = allClients.find(function (c) { return c.phone === client.phone; });
+          showClientDetail(updated || client);
+
+        } catch (err) {
+          alert('Record failed: ' + err.message);
+          btn.disabled    = false;
+          btn.textContent = 'Record';
+        }
+      }
+
+      document.getElementById('btn-record-payment').addEventListener('click', doRecordPayment);
+      document.getElementById('payment-amt-input').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') doRecordPayment();
+      });
+
+      // ── Download receipt / Delete (undo) a payment ──
+      const histList = document.getElementById('payment-hist-list');
+      if (histList) {
+        histList.addEventListener('click', async function (e) {
+          // ── Receipt download ──
+          const rcptBtn = e.target.closest('.btn-receipt');
+          if (rcptBtn) {
+            const pidx = parseInt(rcptBtn.dataset.pidx);
+            const py   = payments[pidx];
+            const runningPaid = payments.slice(0, pidx + 1)
+              .reduce(function (s, p) { return s + (p.amount || 0); }, 0);
+            const remainingAfter = Math.max(0, totalBilled - runningPaid);
+            rcptBtn.disabled    = true;
+            rcptBtn.textContent = '…';
+            generateReceiptPDF(client, py, remainingAfter)
+              .catch(function (err) { alert('Receipt failed: ' + err.message); })
+              .finally(function () {
+                rcptBtn.disabled    = false;
+                rcptBtn.innerHTML   = '&#8595; Receipt';
+              });
+            return;
+          }
+
+          const delBtn = e.target.closest('.btn-del-payment');
+          if (!delBtn) return;
+          const pidx = parseInt(delBtn.dataset.pidx);
+          const py   = payments[pidx];
+          const ok   = confirm(
+            'Undo payment of ' + fmtINR(py.amount || 0) + ' on ' + (py.date || '?') + '?'
+          );
+          if (!ok) return;
+
+          delBtn.disabled = true;
+
+          try {
+            const { data: fresh, error: fe } = await db.from('ledger').select('client')
+              .eq('code', workspaceCode).eq('client_key', client.phone).single();
+            if (fe) throw fe;
+
+            const newPayments = (fresh.client.payments || [])
+              .filter(function (_, i) { return i !== pidx; });
+
+            const { error: ue } = await db.from('ledger')
+              .update({ client: Object.assign({}, fresh.client, { payments: newPayments }) })
+              .eq('code', workspaceCode).eq('client_key', client.phone);
+            if (ue) throw ue;
+
+            await loadClients();
+            const updated = allClients.find(function (c) { return c.phone === client.phone; });
+            showClientDetail(updated || client);
+
+          } catch (err) {
+            alert('Undo failed: ' + err.message);
+            delBtn.disabled = false;
+          }
+        });
+      }
+
+      // ── Clear Payment — delete entire client row ──
+      // ── Edit / Delete purchases via delegation on tbody ──
+      if (!purchases.length) return;
+
+      document.getElementById('purchase-tbody').addEventListener('click', async function (e) {
+        const payBtn     = e.target.closest('.btn-pay-purch');
+        const reprintBtn = e.target.closest('.btn-reprint-purch');
+        const editBtn    = e.target.closest('.btn-edit-purch');
+        const delBtn     = e.target.closest('.btn-del-purch');
+        const saveBtn    = e.target.closest('.btn-save-edit');
+        const cancelBtn  = e.target.closest('.btn-cancel-edit');
+
+        // ── Reprint: regenerate invoice PDF from stored line items ──
+        if (reprintBtn) {
+          const p = purchases[parseInt(reprintBtn.dataset.idx)];
+          if (!p.lineItems || !p.lineItems.length) { alert('No line items stored for this invoice.'); return; }
+          reprintBtn.disabled = true;
+          reprintBtn.textContent = '…';
+          try {
+            await reprintInvoice(p, client);
+          } finally {
+            reprintBtn.disabled = false;
+            reprintBtn.innerHTML = '&#8595; Print';
+          }
+          return;
+        }
+
+        // ── Pay: record the invoice amount as a payment instantly ──
+        if (payBtn) {
+          const idx    = parseInt(payBtn.dataset.idx);
+          const p      = purchases[idx];
+          const amount = p.grandTotal || 0;
+          if (amount <= 0) { alert('This invoice has no amount to record.'); return; }
+
+          const ok = confirm(
+            'Record payment of ' + fmtINR(amount) + ' for ' + (p.invoiceNo || 'this invoice') + '?'
+          );
+          if (!ok) return;
+
+          payBtn.disabled    = true;
+          payBtn.textContent = '…';
+
+          try {
+            const { data: fresh, error: fe } = await db.from('ledger').select('client')
+              .eq('code', workspaceCode).eq('client_key', client.phone).single();
+            if (fe) throw fe;
+
+            const d   = new Date();
+            const dd  = String(d.getDate()).padStart(2, '0');
+            const mm  = String(d.getMonth() + 1).padStart(2, '0');
+            const today = dd + '/' + mm + '/' + d.getFullYear();
+
+            const newPayments = (fresh.client.payments || [])
+              .concat({ date: today, amount: amount });
+
+            const { error: ue } = await db.from('ledger')
+              .update({ client: Object.assign({}, fresh.client, { payments: newPayments }) })
+              .eq('code', workspaceCode).eq('client_key', client.phone);
+            if (ue) throw ue;
+
+            await loadClients();
+            const updated = allClients.find(function (c) { return c.phone === client.phone; });
+            showClientDetail(updated || client);
+
+          } catch (err) {
+            alert('Record failed: ' + err.message);
+            payBtn.disabled    = false;
+            payBtn.textContent = 'Pay';
+          }
+          return;
+        }
+
+        if (editBtn) {
+          const idx = parseInt(editBtn.dataset.idx);
+          const p   = purchases[idx];
+          const tr  = this.querySelector('tr[data-idx="' + idx + '"]');
+          tr.innerHTML =
+            '<td class="edit-cell"><input class="edit-invno"  value="' + (p.invoiceNo  || '') + '" /></td>' +
+            '<td class="edit-cell"><input class="edit-date"   value="' + (p.date       || '') + '" maxlength="10" /></td>' +
+            '<td class="edit-cell"><input class="edit-amount" type="number" value="' + (p.grandTotal || 0) + '" min="0" step="any" /></td>' +
+            '<td class="ptbl-actions">' +
+              '<button class="btn-save-edit"   data-idx="' + idx + '">Save</button>' +
+              '<button class="btn-cancel-edit" data-idx="' + idx + '">Cancel</button>' +
+            '</td>';
+          tr.querySelector('.edit-invno').focus();
+        }
+
+        if (cancelBtn) {
+          const fresh = allClients.find(function (c) { return c.phone === client.phone; });
+          showClientDetail(fresh || client);
+        }
+
+        if (saveBtn) {
+          const idx    = parseInt(saveBtn.dataset.idx);
+          const tr     = this.querySelector('tr[data-idx="' + idx + '"]');
+          const newInv = tr.querySelector('.edit-invno').value.trim();
+          const newDt  = tr.querySelector('.edit-date').value.trim();
+          const newAmt = parseFloat(tr.querySelector('.edit-amount').value) || 0;
+
+          if (newAmt <= 0) { alert('Amount must be greater than zero.'); return; }
+
+          saveBtn.disabled    = true;
+          saveBtn.textContent = '…';
+
+          try {
+            const { data: fresh, error: fe } = await db.from('ledger').select('client')
+              .eq('code', workspaceCode).eq('client_key', client.phone).single();
+            if (fe) throw fe;
+
+            const newPurchases = (fresh.client.purchases || []).slice();
+            newPurchases[idx]  = { invoiceNo: newInv, date: newDt, grandTotal: newAmt };
+
+            const { error: ue } = await db.from('ledger')
+              .update({ client: Object.assign({}, fresh.client, { purchases: newPurchases }) })
+              .eq('code', workspaceCode).eq('client_key', client.phone);
+            if (ue) throw ue;
+
+            await loadClients();
+            const updated = allClients.find(function (c) { return c.phone === client.phone; });
+            showClientDetail(updated || client);
+
+          } catch (err) {
+            alert('Save failed: ' + err.message);
+            saveBtn.disabled    = false;
+            saveBtn.textContent = 'Save';
+          }
+        }
+
+        if (delBtn) {
+          const idx = parseInt(delBtn.dataset.idx);
+          const p   = purchases[idx];
+          const ok  = confirm(
+            'Delete invoice ' + (p.invoiceNo || ('#' + (idx + 1))) +
+            ' (' + fmtINR(p.grandTotal || 0) + ')?\nThis can\'t be undone.'
+          );
+          if (!ok) return;
+
+          delBtn.disabled = true;
+
+          try {
+            const { data: fresh, error: fe } = await db.from('ledger').select('client')
+              .eq('code', workspaceCode).eq('client_key', client.phone).single();
+            if (fe) throw fe;
+
+            const newPurchases = (fresh.client.purchases || [])
+              .filter(function (_, i) { return i !== idx; });
+
+            const { error: ue } = await db.from('ledger')
+              .update({ client: Object.assign({}, fresh.client, { purchases: newPurchases }) })
+              .eq('code', workspaceCode).eq('client_key', client.phone);
+            if (ue) throw ue;
+
+            await loadClients();
+            const updated = allClients.find(function (c) { return c.phone === client.phone; });
+            if (updated) {
+              showClientDetail(updated);
+            } else {
+              detailEl.style.display = 'none';
+              document.getElementById('client-list').style.display        = 'block';
+              document.getElementById('client-search-wrap').style.display = 'block';
+            }
+
+          } catch (err) {
+            alert('Delete failed: ' + err.message);
+            delBtn.disabled = false;
+          }
+        }
+      });
+    }
+
+    // ── Live search filter ──
+    document.getElementById('client-search').addEventListener('input', function () {
+      const q = this.value.trim().toLowerCase();
+      if (!q) { renderClientList(allClients); return; }
+      renderClientList(allClients.filter(function (c) {
+        return (c.name  || '').toLowerCase().includes(q) ||
+               (c.phone || '').includes(q);
+      }));
+    });
+
+    // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Workspace unlock — fixed PIN gate
+    // ─────────────────────────────────────────────
+    const CORRECT_PIN = '0987';
+
+    function unlock() {
+      const input = document.getElementById('code-input');
+      const code  = input.value.trim();
+
+      if (!/^\d{4}$/.test(code)) {
+        input.style.borderColor = '#ef4444';
+        input.focus();
+        return;
+      }
+
+      if (code !== CORRECT_PIN) {
+        input.style.borderColor = '#ef4444';
+        input.value = '';
+        input.placeholder = 'Wrong PIN, try again';
+        input.focus();
+        return;
+      }
+
+      input.style.borderColor = '';
+      input.placeholder = '••••';
+      workspaceCode = CORRECT_PIN;
+      sessionStorage.setItem('gst_workspace_code', CORRECT_PIN);
+
+      document.getElementById('lock-screen').style.display = 'none';
+      document.getElementById('main-app').style.display    = 'block';
+      loadClients();
+    }
+
+    // If already unlocked this session, skip the lock screen
+    const _saved = sessionStorage.getItem('gst_workspace_code');
+    if (_saved === CORRECT_PIN) {
+      workspaceCode = CORRECT_PIN;
+      document.getElementById('lock-screen').style.display = 'none';
+      document.getElementById('main-app').style.display    = 'block';
+      loadClients();
+    }
+
+    document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
+    document.getElementById('btn-print-all').addEventListener('click', generateAllClientsPDF);
+    document.getElementById('btn-open').addEventListener('click', unlock);
+
+    const _codeInput = document.getElementById('code-input');
+    // Strip non-digits as the user types
+    _codeInput.addEventListener('input', function () {
+      this.value = this.value.replace(/\D/g, '').slice(0, 4);
+      this.style.borderColor = ''; // clear red border once they start correcting
+    });
+    // Auto-submit when 4 digits are entered
+    _codeInput.addEventListener('input', function () {
+      if (this.value.length === 4) unlock();
+    });
+    _codeInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') unlock();
+    });
+  </script>
+
+</body>
+</html>
