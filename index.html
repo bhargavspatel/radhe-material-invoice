@@ -24,15 +24,15 @@
 
     /* ── Palette ── */
     :root {
-      --blue-dark:   #30364F;
-      --blue-mid:    #4B5773;
-      --blue-light:  #E4E8EC;
-      --blue-border: #ACBAC4;
+      --blue-dark:   #1a3a6b;
+      --blue-mid:    #2563eb;
+      --blue-light:  #dbeafe;
+      --blue-border: #93c5fd;
       --white:       #ffffff;
       --gray-text:   #374151;
       --gray-muted:  #6b7280;
       --gray-bg:     #eef2f7;   /* cooler, slightly blue-tinted page bg */
-      --shadow-sm:   0 1px 3px rgba(0,0,0,0.07), 0 2px 8px rgba(48,54,79,0.06);
+      --shadow-sm:   0 1px 3px rgba(0,0,0,0.07), 0 2px 8px rgba(26,58,107,0.06);
     }
 
   <style>
@@ -55,7 +55,7 @@
       align-items: center;
       justify-content: center;
       gap: 16px;
-      box-shadow: 0 2px 10px rgba(48,54,79,0.35);
+      box-shadow: 0 2px 10px rgba(26,58,107,0.35);
       position: sticky;
       top: 0;
       z-index: 100;
@@ -224,7 +224,7 @@
     select:focus {
       outline: none;
       border-color: var(--blue-mid);
-      box-shadow: 0 0 0 3px rgba(75,87,115,0.14);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.14);
     }
 
     input[readonly] {
@@ -278,7 +278,7 @@
       background: #fff;
       border: 1.5px solid var(--blue-border);
       border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(48,54,79,0.22);
+      box-shadow: 0 8px 32px rgba(26,58,107,0.22);
       z-index: 99999;
       padding: 10px;
       display: none;
@@ -499,7 +499,7 @@
     #lock-screen {
       position: fixed;
       inset: 0;
-      background: linear-gradient(150deg, #E4E8EC 0%, #eef2f7 60%);
+      background: linear-gradient(150deg, #dbeafe 0%, #eef2f7 60%);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -515,7 +515,7 @@
       max-width: 400px;
       width: 100%;
       text-align: center;
-      box-shadow: 0 8px 48px rgba(48,54,79,0.16);
+      box-shadow: 0 8px 48px rgba(26,58,107,0.16);
     }
 
     @media (max-width: 440px) { .lock-card { padding: 32px 22px 28px; } }
@@ -573,7 +573,7 @@
 
     #ledger-total-bar {
       display: none;
-      background: #30364F;
+      background: #1a3a6b;
       color: #fff;
       border-radius: 8px;
       padding: 10px 14px;
@@ -604,16 +604,16 @@
       width: 100%;
       margin-top: 8px;
       padding: 9px 14px;
-      background: #EEF0F3;
-      color: #30364F;
-      border: 1.5px solid #C7CDD4;
+      background: #f0f4ff;
+      color: #1a3a6b;
+      border: 1.5px solid #c7d7f0;
       border-radius: 8px;
       font-size: 0.84rem;
       font-weight: 700;
       cursor: pointer;
       text-align: center;
     }
-    .btn-print-all:hover { background: #E4E8EC; }
+    .btn-print-all:hover { background: #dbeafe; }
 
     .client-search-wrap { margin-bottom: 10px; }
 
@@ -746,7 +746,7 @@
     .btn-del-purch          { background: #fee2e2; color: #b91c1c; }
     .btn-del-purch:hover    { background: #fecaca; }
     .btn-reprint-purch      { background: #eff6ff; color: #1d4ed8; margin-right: 4px; }
-    .btn-reprint-purch:hover{ background: #E4E8EC; }
+    .btn-reprint-purch:hover{ background: #dbeafe; }
 
     .btn-del-purch:disabled,
     .btn-edit-purch:disabled { opacity: 0.45; cursor: default; }
@@ -764,7 +764,7 @@
     .edit-cell input:focus {
       outline: none;
       border-color: var(--blue-mid);
-      box-shadow: 0 0 0 2px rgba(75,87,115,0.13);
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.13);
     }
 
     .btn-save-edit, .btn-cancel-edit {
@@ -1100,7 +1100,7 @@
     }
     .purchases-section-header .purchases-section-title { margin: 0; }
     .btn-statement {
-      background: #30364F;
+      background: #1a3a6b;
       color: #fff;
       border: none;
       border-radius: 6px;
@@ -1125,7 +1125,7 @@
       width: 340px; max-width: 95vw; overflow: hidden;
     }
     .sdm-header {
-      background: #30364F; color: #fff; padding: 14px 18px;
+      background: #1a3a6b; color: #fff; padding: 14px 18px;
       display: flex; align-items: center; justify-content: space-between;
       font-weight: 700; font-size: 0.95rem;
     }
@@ -1138,24 +1138,24 @@
     .sdm-row { margin-bottom: 14px; }
     .sdm-row label {
       display: block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
-      text-transform: uppercase; color: #30364F; margin-bottom: 5px;
+      text-transform: uppercase; color: #1a3a6b; margin-bottom: 5px;
     }
     .sdm-row input[type="date"] {
-      width: 100%; padding: 9px 11px; border: 1.5px solid #C7CDD4;
-      border-radius: 8px; font-size: 0.9rem; color: #30364F;
+      width: 100%; padding: 9px 11px; border: 1.5px solid #c7d7f0;
+      border-radius: 8px; font-size: 0.9rem; color: #1a3a6b;
       box-sizing: border-box; outline: none;
     }
-    .sdm-row input[type="date"]:focus { border-color: #30364F; }
+    .sdm-row input[type="date"]:focus { border-color: #1a3a6b; }
     .sdm-footer {
       display: flex; gap: 10px; padding: 0 18px 18px;
     }
     .sdm-cancel {
-      flex: 1; padding: 10px; border: 1.5px solid #C7CDD4; border-radius: 8px;
+      flex: 1; padding: 10px; border: 1.5px solid #c7d7f0; border-radius: 8px;
       background: #fff; color: #6b7280; font-weight: 600; cursor: pointer; font-size: 0.88rem;
     }
     .sdm-generate {
       flex: 2; padding: 10px; border: none; border-radius: 8px;
-      background: #30364F; color: #fff; font-weight: 700; cursor: pointer; font-size: 0.88rem;
+      background: #1a3a6b; color: #fff; font-weight: 700; cursor: pointer; font-size: 0.88rem;
       transition: background 0.15s;
     }
     .sdm-generate:hover { background: #122952; }
@@ -1214,7 +1214,7 @@
             <input type="text" id="inv-date" placeholder="DD/MM/YYYY" maxlength="10" style="flex:1;" />
             <input type="date" id="inv-date-picker" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" tabindex="-1" />
             <button type="button" id="inv-date-cal-btn" title="Pick date"
-              style="padding:0 11px;height:42px;border:1.5px solid #C7CDD4;border-radius:8px;background:#EEF0F3;cursor:pointer;font-size:1.1rem;color:#30364F;flex-shrink:0;">
+              style="padding:0 11px;height:42px;border:1.5px solid #c7d7f0;border-radius:8px;background:#f0f4ff;cursor:pointer;font-size:1.1rem;color:#1a3a6b;flex-shrink:0;">
               &#128197;
             </button>
           </div>
@@ -1811,7 +1811,7 @@
         : '<div style="width:76px;height:76px;background:rgba(255,255,255,0.15);border-radius:10px;margin:0 auto 12px;"></div>';
 
       const header =
-        '<div style="background:#30364F;padding:28px 24px 18px;text-align:center;color:#fff;">' +
+        '<div style="background:#1a3a6b;padding:28px 24px 18px;text-align:center;color:#fff;">' +
           logoImg +
           '<div style="font-size:24px;font-weight:800;letter-spacing:0.14em;">' + (billData.title || 'BILL') + '</div>' +
         '</div>';
@@ -1820,7 +1820,7 @@
         '<div style="padding:14px 24px 22px;display:flex;justify-content:flex-end;">' +
           '<div style="text-align:right;min-width:180px;padding-top:8px;border-top:1px solid #9ca3af;">' +
             '<div style="font-size:11px;color:#6b7280;">Authorised Signature</div>' +
-            '<div style="font-size:13px;font-weight:700;color:#30364F;margin-top:3px;">RADHE MATERIAL</div>' +
+            '<div style="font-size:13px;font-weight:700;color:#1a3a6b;margin-top:3px;">RADHE MATERIAL</div>' +
           '</div>' +
         '</div>';
 
@@ -1936,9 +1936,9 @@
       } else {
         // Receipt layout
         const settled = (billData.remainingAfter || 0) === 0;
-        const remBg   = settled ? '#dcfce7' : '#E4E8EC';
-        const remBdr  = settled ? '#16a34a' : '#30364F';
-        const remClr  = settled ? '#16a34a' : '#30364F';
+        const remBg   = settled ? '#dcfce7' : '#dbeafe';
+        const remBdr  = settled ? '#16a34a' : '#1a3a6b';
+        const remClr  = settled ? '#16a34a' : '#1a3a6b';
         const remText = settled ? 'FULLY SETTLED' : fmtINR(billData.remainingAfter);
 
         const details = [
@@ -1957,9 +1957,9 @@
 
         return '<div style="width:800px;font-family:Arial,Helvetica,sans-serif;background:#fff;">' +
           header +
-          '<div style="background:#E4E8EC;padding:12px 20px;font-size:14px;border-bottom:1px solid #ACBAC4;">' +
+          '<div style="background:#dbeafe;padding:12px 20px;font-size:14px;border-bottom:1px solid #93c5fd;">' +
             '<span style="color:#6b7280;">Received from:</span>' +
-            '<b style="color:#30364F;margin-left:8px;">' + (billData.clientName || '') + '</b>' +
+            '<b style="color:#1a3a6b;margin-left:8px;">' + (billData.clientName || '') + '</b>' +
           '</div>' +
           '<div style="margin:20px 20px 0;background:#dcfce7;border:2px solid #16a34a;border-radius:12px;padding:24px;text-align:center;">' +
             '<div style="font-size:12px;font-weight:700;color:#16a34a;letter-spacing:0.1em;margin-bottom:8px;">AMOUNT PAID</div>' +
@@ -2154,7 +2154,7 @@
 
       function drawTableHeader() {
         const hdrs = ['Date','Invoice No','Description','Unit','Qty','Rate','Amount'];
-        doc.setFillColor(48,54,79);
+        doc.setFillColor(26,58,107);
         doc.rect(ML, y, CW, ROW_H, 'F');
         for (let k = 0; k < COL.length; k++) {
           const al = k >= 4 ? 'R' : 'L';
@@ -2240,7 +2240,7 @@
       // ─── Outstanding total bar ─────────────────────────────────
       y += 3;
       doc.setDrawColor(0,0,0); doc.setLineWidth(0.4); doc.line(ML,y,ML+CW,y); y += 1;
-      doc.setFillColor(48,54,79); doc.rect(ML,y,CW,11,'F');
+      doc.setFillColor(26,58,107); doc.rect(ML,y,CW,11,'F');
       doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(255,255,255);
       doc.text('TOTAL OUTSTANDING :', ML+4, y+7);
       doc.text(pdfINR(outstanding), ML+CW-3, y+7, {align:'right'}); y += 13;
@@ -2392,7 +2392,7 @@
 
         function drawHeader() {
           const hdrs = ['No.', 'Client Name', 'Phone', 'Last Invoice', 'Outstanding'];
-          doc.setFillColor(48,54,79);
+          doc.setFillColor(26,58,107);
           doc.rect(ML, y, CW, ROW_H, 'F');
           const aligns = ['C','L','L','C','R'];
           for (let k = 0; k < COL.length; k++) {
@@ -2448,7 +2448,7 @@
         // ── Total row ────────────────────────────────────────────
         y += 1;
         doc.setLineWidth(0.4); doc.setDrawColor(0,0,0); doc.line(ML, y, ML+CW, y); y += 1;
-        doc.setFillColor(48,54,79); doc.rect(ML, y, CW, 10, 'F');
+        doc.setFillColor(26,58,107); doc.rect(ML, y, CW, 10, 'F');
         doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(255,255,255);
         doc.text('TOTAL OUTSTANDING', ML+4, y+6.5);
         doc.text(pdfINR(totalOutstanding), ML+CW-3, y+6.5, {align:'right'});
@@ -2509,7 +2509,7 @@
       const t = document.createElement('div');
       t.id = 'app-toast';
       t.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);' +
-        'background:#30364F;color:#fff;padding:13px 22px;border-radius:10px;font-size:0.86rem;' +
+        'background:#1a3a6b;color:#fff;padding:13px 22px;border-radius:10px;font-size:0.86rem;' +
         'font-weight:600;z-index:99999;box-shadow:0 4px 24px rgba(0,0,0,0.35);max-width:88vw;' +
         'text-align:center;line-height:1.45;transition:opacity 0.35s;';
       t.textContent = message;
@@ -2652,9 +2652,9 @@
       const CW = PW - ML - MR;
 
       const C = {
-        blueDark:   [48,  54,  79],
-        blueMid:    [75,  87,  115],
-        blueLight:  [228, 232, 236],
+        blueDark:   [26,  58,  107],
+        blueMid:    [37,  99,  235],
+        blueLight:  [219, 234, 254],
         green:      [22,  163, 74],
         greenLight: [220, 252, 231],
         white:      [255, 255, 255],
