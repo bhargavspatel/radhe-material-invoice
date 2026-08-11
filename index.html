@@ -1341,7 +1341,21 @@
         return list;
       }()),
       PAL: ['2 MM PAL', '2.5 MM PAL', '3 MM PAL', '4 MM PAL', '2.5 MM PAL COLOR', '3 MM PAL COLOR'],
-      ZARDOSI: ['4 MM ZARDOSI', '6 MM ZARDOSI', '8 MM ZARDOSI', '9 MM ZARDOSI', '12 MM ZARDOSI']
+      ZARDOSI: ['4 MM ZARDOSI', '6 MM ZARDOSI', '8 MM ZARDOSI', '9 MM ZARDOSI', '12 MM ZARDOSI'],
+      JARKAN: (function () {
+        const colors = ['SILVER', 'SHADOW', 'LCT'];
+        const sizes  = ['4.0 SS','4.5 SS','6.0 SS','6.5 SS','7.0 SS','7.5 SS','8.0 SS','9.0 SS','9.5 SS','10.0 SS','11.0 SS','12.0 SS'];
+        const list = [];
+        colors.forEach(function (c) { sizes.forEach(function (s) { list.push(c + ' ' + s + ' JARKAN'); }); });
+        return list;
+      }()),
+      DMC: (function () {
+        const variants = ['TP', 'YX', 'SIMON', 'ROSE', 'FX', 'FH'];
+        const colors   = ['SHADOW', 'SILVER', 'LCT', 'JONQUIL'];
+        const list = [];
+        variants.forEach(function (v) { colors.forEach(function (c) { list.push(v + ' ' + c + ' 6 SS DMC'); }); });
+        return list;
+      }())
     };
 
     // ─────────────────────────────────────────────
@@ -1534,8 +1548,8 @@
 
       function showCategoryProducts(cat) {
         const products = PRODUCT_CATEGORIES[cat];
-        const cols    = cat === 'BEADS' ? 4 : 3;
-        const minW    = cat === 'BEADS' ? 620 : 340;
+        const cols    = (cat === 'BEADS' || cat === 'JARKAN' || cat === 'DMC') ? 4 : 3;
+        const minW    = cat === 'JARKAN' ? 680 : (cat === 'BEADS' || cat === 'DMC') ? 620 : 340;
         dropdown.style.minWidth = minW + 'px';
         dropdown.innerHTML =
           '<div class="dd-back-row">' +
