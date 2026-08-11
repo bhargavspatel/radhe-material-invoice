@@ -73,7 +73,7 @@
       overflow: hidden;
     }
 
-    header .logo img            { width: 100%; height: 100%; object-fit: contain; display: none; }
+    header .logo img            { width: 100%; height: 100%; object-fit: cover; display: none; }
     header .logo .logo-fallback { font-size: 28px; line-height: 1; color: var(--white); }
 
     header h1 {
@@ -532,7 +532,7 @@
       overflow: hidden;
     }
 
-    .lock-logo-wrap img { width: 100%; height: 100%; object-fit: contain; }
+    .lock-logo-wrap img { width: 100%; height: 100%; object-fit: cover; }
 
     .lock-card h2 { font-size: 1.25rem; font-weight: 700; color: var(--blue-dark); margin-bottom: 8px; }
 
@@ -1166,7 +1166,7 @@
   <!-- ── Header ── -->
   <header>
     <div class="logo">
-      <img id="logo-img" src="https://i.ibb.co/bg235pZ0/Gemini-Generated-Image-dznkf5dznkf5dznk.png" alt="RADHE MATERIAL" />
+      <img id="logo-img" src="https://i.ibb.co/Y73GsXnZ/Gemini-Generated-Image-66k3zj66k3zj66k3.png" alt="RADHE MATERIAL" />
       <span class="logo-fallback" id="logo-fallback">&#x1F4CB;</span>
     </div>
     <h1>SALE INVOICE</h1>
@@ -1176,7 +1176,7 @@
   <div id="lock-screen">
     <div class="lock-card">
       <div class="lock-logo-wrap">
-        <img src="https://i.ibb.co/bg235pZ0/Gemini-Generated-Image-dznkf5dznkf5dznk.png" alt="Logo" />
+        <img src="https://i.ibb.co/Y73GsXnZ/Gemini-Generated-Image-66k3zj66k3zj66k3.png" alt="Logo" />
       </div>
       <h2>GST Invoice Generator</h2>
       <p>Enter your 4-digit PIN to open your workspace.</p>
@@ -1649,7 +1649,7 @@
 
     // Paste your logo image URL here (any publicly accessible PNG/JPG/WebP).
     // Leave as empty string to skip the logo and show business name only.
-    const LOGO_URL = 'https://i.ibb.co/bg235pZ0/Gemini-Generated-Image-dznkf5dznkf5dznk.png';
+    const LOGO_URL = 'https://i.ibb.co/Y73GsXnZ/Gemini-Generated-Image-66k3zj66k3zj66k3.png';
 
     // jsPDF's built-in Helvetica font lacks the ₹ glyph (U+20B9), so we
     // write "Rs." in the PDF while keeping ₹ on the web page.
@@ -1760,10 +1760,16 @@
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = function () {
+          // Center-crop to a square (like CSS object-fit: cover) so a
+          // non-square source logo isn't stretched in the PDFs' square logo
+          // boxes — jsPDF's addImage stretches to fit, it doesn't crop.
+          const side = Math.min(img.naturalWidth, img.naturalHeight);
+          const sx = (img.naturalWidth  - side) / 2;
+          const sy = (img.naturalHeight - side) / 2;
           const canvas = document.createElement('canvas');
-          canvas.width  = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          canvas.getContext('2d').drawImage(img, 0, 0);
+          canvas.width  = side;
+          canvas.height = side;
+          canvas.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, side, side);
           try { resolve(canvas.toDataURL('image/png')); }
           catch (e) { resolve(null); } // tainted canvas (CORS)
         };
