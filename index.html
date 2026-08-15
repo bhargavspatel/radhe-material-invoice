@@ -2353,12 +2353,10 @@
       doc.line(fsx,y+AH*2,ML+CW,y+AH*2);
       doc.setFont('helvetica','bold'); doc.text('Total Amount  :-',fsx+3,y+AH*2+AH/2+1.3); doc.text(totalAmt.toFixed(2),ML+CW-2,y+AH*2+AH/2+1.3,{align:'right'});
       y+=AH*3+1; doc.setLineWidth(0.4); doc.line(ML,y,ML+CW,y);
-      const remarkColW = fsx-ML-4;
-      const gujNotice   = await buildGujaratiNoticeImage(remarkColW, 2.3);
-      const rH = Math.max(10, 5+gujNotice.heightMm+2);
-      doc.line(fsx,y,fsx,y+rH); doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.text('Remark  :-',ML+2,y+3.8);
-      doc.addImage(gujNotice.dataUrl,'PNG',ML+2,y+5,remarkColW,gujNotice.heightMm);
-      doc.setFontSize(6); doc.text('E&OE',ML+CW-2,y+4,{align:'right'}); doc.setFont('helvetica','bold'); doc.text('For RADHE MATERIAL',ML+CW-2,y+8,{align:'right'});
+      const gujNotice = await buildGujaratiNoticeImage(CW-4, 3.3);
+      const rH = Math.max(14, 9+gujNotice.heightMm+3);
+      doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.text('E&OE',ML+CW-2,y+4,{align:'right'}); doc.setFont('helvetica','bold'); doc.text('For RADHE MATERIAL',ML+CW-2,y+8,{align:'right'});
+      doc.addImage(gujNotice.dataUrl,'PNG',ML+2,y+9,CW-4,gujNotice.heightMm);
       y+=rH; doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y); doc.line(ML,topY,ML,y); doc.line(ML+CW,topY,ML+CW,y);
 
       const waMsg='Invoice '+invNumber+' for '+clientName+'\nDate: '+invDate+'\nTotal: Rs.'+grandTotal.toFixed(2);
@@ -3104,21 +3102,15 @@
         doc.setLineWidth(0.4);
         doc.line(ML, y, ML + CW, y);
 
-        const remarkColW = footSplitX - ML - 4;
-        const gujNotice  = await buildGujaratiNoticeImage(remarkColW, 2.3);
-        const remarkH    = Math.max(10, 5 + gujNotice.heightMm + 2);
-        doc.line(footSplitX, y, footSplitX, y + remarkH);
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text('Remark  :-', ML + 2, y + 3.8);
-        doc.addImage(gujNotice.dataUrl, 'PNG', ML + 2, y + 5, remarkColW, gujNotice.heightMm);
+        const gujNotice = await buildGujaratiNoticeImage(CW - 4, 3.3);
+        const remarkH   = Math.max(14, 9 + gujNotice.heightMm + 3);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(6);
         doc.text('E&OE', ML + CW - 2, y + 4, { align: 'right' });
         doc.setFont('helvetica', 'bold');
         doc.text('For ' + SELLER_NAME, ML + CW - 2, y + 8, { align: 'right' });
+        doc.addImage(gujNotice.dataUrl, 'PNG', ML + 2, y + 9, CW - 4, gujNotice.heightMm);
 
         y += remarkH;
 
