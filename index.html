@@ -2321,25 +2321,25 @@
       y+=toH; doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y);
 
       const COL=[10,68,18,22,28,34]; const CX=[ML]; for(let k=0;k<COL.length-1;k++) CX.push(CX[k]+COL[k]);
-      const ROW_H=4.6;
-      for(let k=0;k<COL.length;k++){ cellRect(CX[k],y,COL[k],ROW_H,[224,224,224]); doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(0,0,0); const hh=['Sr\nNo','Description','Unit','Qty','Rate','Amount'][k].split('\n'); if(hh.length>1){doc.text(hh[0],CX[k]+COL[k]/2,y+1.9,{align:'center'});doc.text(hh[1],CX[k]+COL[k]/2,y+3.9,{align:'center'});}else{doc.text(hh[0],CX[k]+COL[k]/2,y+ROW_H/2+1.2,{align:'center'});} }
+      const ROW_H=5.75;
+      for(let k=0;k<COL.length;k++){ cellRect(CX[k],y,COL[k],ROW_H,[224,224,224]); doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(0,0,0); const hh=['Sr\nNo','Description','Unit','Qty','Rate','Amount'][k].split('\n'); if(hh.length>1){doc.text(hh[0],CX[k]+COL[k]/2,y+2.4,{align:'center'});doc.text(hh[1],CX[k]+COL[k]/2,y+4.9,{align:'center'});}else{doc.text(hh[0],CX[k]+COL[k]/2,y+ROW_H/2+1.5,{align:'center'});} }
       y+=ROW_H;
-      const MIN_R=10, totalRows=Math.max(lineItems.length,MIN_R);
+      const MIN_R=8, totalRows=Math.max(lineItems.length,MIN_R);
       for(let i=0;i<totalRows;i++){
         const row=i<lineItems.length?lineItems[i]:null; const bg=i%2===1?[250,250,250]:[255,255,255];
         for(let k=0;k<COL.length;k++){
           cellRect(CX[k],y,COL[k],ROW_H,bg);
           if(row){ let txt='',al='L'; switch(k){
             case 0:txt=String(i+1);al='C';break;
-            case 1:doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(0,0,0);doc.text(doc.splitTextToSize(row.service,COL[1]-4)[0],CX[1]+2,y+ROW_H/2+1.2);continue;
+            case 1:doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(0,0,0);doc.text(doc.splitTextToSize(row.service,COL[1]-4)[0],CX[1]+2,y+ROW_H/2+1.6);continue;
             case 2:txt=row.unit||'';al='C';break;
             case 3:txt=row.qty>0?(row.qtyDisplay||smartNum(row.qty)):'';al='R';break;
             case 4:txt=row.rate>0?(row.rateDisplay||smartNum(row.rate)):'';al='R';break;
             case 5:txt=row.amount>0?row.amount.toFixed(2):'';al='R';break;
-          } cellText(CX[k],y,COL[k],ROW_H,txt,'normal',6.5,al); }
+          } cellText(CX[k],y,COL[k],ROW_H,txt,'normal',8,al); }
         } y+=ROW_H;
       }
-      for(let k=0;k<COL.length;k++){ cellRect(CX[k],y,COL[k],ROW_H,[240,240,240]); if(k===3&&qtyTotal>0) cellText(CX[k],y,COL[k],ROW_H,qtyTotal.toFixed(2),'bold',6.5,'R'); }
+      for(let k=0;k<COL.length;k++){ cellRect(CX[k],y,COL[k],ROW_H,[240,240,240]); if(k===3&&qtyTotal>0) cellText(CX[k],y,COL[k],ROW_H,qtyTotal.toFixed(2),'bold',8,'R'); }
       y+=ROW_H;
       doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y);
       const AH=5.2, fsx=ML+108;
@@ -2996,26 +2996,26 @@
         for (let k = 0; k < COL.length - 1; k++) CX.push(CX[k] + COL[k]);
         const HDRS   = ['Sr\nNo', 'Description', 'Unit', 'Qty', 'Rate', 'Amount'];
         const ALIGNS = ['C', 'C', 'C', 'C', 'C', 'C'];
-        const ROW_H  = 4.6;
+        const ROW_H  = 5.75;
 
         // Table header row
         for (let k = 0; k < COL.length; k++) {
           cellRect(CX[k], y, COL[k], ROW_H, [224, 224, 224]);
           const lines = HDRS[k].split('\n');
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(6);
+          doc.setFontSize(7.5);
           doc.setTextColor(0,0,0);
           if (lines.length > 1) {
-            doc.text(lines[0], CX[k] + COL[k]/2, y + 1.9, { align: 'center' });
-            doc.text(lines[1], CX[k] + COL[k]/2, y + 3.9, { align: 'center' });
+            doc.text(lines[0], CX[k] + COL[k]/2, y + 2.4, { align: 'center' });
+            doc.text(lines[1], CX[k] + COL[k]/2, y + 4.9, { align: 'center' });
           } else {
-            doc.text(lines[0], CX[k] + COL[k]/2, y + ROW_H/2 + 1.2, { align: 'center' });
+            doc.text(lines[0], CX[k] + COL[k]/2, y + ROW_H/2 + 1.5, { align: 'center' });
           }
         }
         y += ROW_H;
 
-        // Item rows (minimum 10)
-        const MIN_ROWS = 10;
+        // Item rows (minimum 8)
+        const MIN_ROWS = 8;
         const totalRows = Math.max(lineItems.length, MIN_ROWS);
 
         for (let i = 0; i < totalRows; i++) {
@@ -3029,17 +3029,17 @@
                 case 0: txt = String(i+1); al = 'C'; break;
                 case 1:
                   doc.setFont('helvetica', 'normal');
-                  doc.setFontSize(6.5);
+                  doc.setFontSize(8);
                   doc.setTextColor(0,0,0);
                   const desc = doc.splitTextToSize(row.service, COL[1] - 4)[0];
-                  doc.text(desc, CX[1] + 2, y + ROW_H/2 + 1.2);
+                  doc.text(desc, CX[1] + 2, y + ROW_H/2 + 1.6);
                   continue;
                 case 2: txt = row.unit || ''; al = 'C'; break;
                 case 3: txt = row.qty > 0 ? (row.qtyDisplay || smartNum(row.qty)) : ''; al = 'R'; break;
                 case 4: txt = row.rate > 0 ? (row.rateDisplay || smartNum(row.rate)) : ''; al = 'R'; break;
                 case 5: txt = row.amount > 0 ? row.amount.toFixed(2) : ''; al = 'R'; break;
               }
-              cellText(CX[k], y, COL[k], ROW_H, txt, 'normal', 6.5, al);
+              cellText(CX[k], y, COL[k], ROW_H, txt, 'normal', 8, al);
             }
           }
           y += ROW_H;
@@ -3049,7 +3049,7 @@
         for (let k = 0; k < COL.length; k++) {
           cellRect(CX[k], y, COL[k], ROW_H, [240,240,240]);
           if (k === 3 && qtyTotal > 0) {
-            cellText(CX[k], y, COL[k], ROW_H, qtyTotal.toFixed(2), 'bold', 6.5, 'R');
+            cellText(CX[k], y, COL[k], ROW_H, qtyTotal.toFixed(2), 'bold', 8, 'R');
           }
         }
         y += ROW_H;
