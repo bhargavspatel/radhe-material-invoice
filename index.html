@@ -1461,10 +1461,10 @@
     // ─────────────────────────────────────────────
     function fmtINR(n) {
       const num = Number(n);
-      if (isNaN(num)) return '₹0.0';
+      if (isNaN(num)) return '₹0.00';
       return '₹' + num.toLocaleString('en-IN', {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
       });
     }
 
@@ -1670,8 +1670,8 @@
     function pdfINR(n) {
       const num = Number(n) || 0;
       return 'Rs. ' + num.toLocaleString('en-IN', {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
       });
     }
 
@@ -1870,7 +1870,7 @@
             '<td style="' + C1 + 'text-align:center;">' + (item.unit||'') + '</td>' +
             '<td style="' + C1 + 'text-align:right;">' + (item.qty>0?(item.qtyDisplay||smartNum(item.qty)):'') + '</td>' +
             '<td style="' + C1 + 'text-align:right;">' + (item.rate>0?(item.rateDisplay||smartNum(item.rate)):'') + '</td>' +
-            '<td style="' + C1 + 'text-align:right;">' + (item.amount>0?item.amount.toFixed(1):'') + '</td>' +
+            '<td style="' + C1 + 'text-align:right;">' + (item.amount>0?item.amount.toFixed(2):'') + '</td>' +
           '</tr>';
         }).join('');
 
@@ -1884,7 +1884,7 @@
         '</tr>';
         const emptyRows = Array(emptyN).fill(emptyRow).join('');
 
-        const roundOffTxt = roundOff === 0 ? '-' : (roundOff > 0 ? '+' : '') + roundOff.toFixed(1);
+        const roundOffTxt = roundOff === 0 ? '-' : (roundOff > 0 ? '+' : '') + roundOff.toFixed(2);
         const logoHtml    = logoData
           ? '<img src="' + logoData + '" style="width:60px;height:60px;object-fit:contain;display:block;margin:0 auto 6px;" />'
           : '';
@@ -1935,9 +1935,9 @@
               '</td>' +
               '<td style="padding:0;vertical-align:top;">' +
                 '<table style="width:100%;border-collapse:collapse;">' +
-                  '<tr><td style="padding:7px 14px;font-size:12px;border-bottom:1px solid #ccc;">Basic Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:12px;border-bottom:1px solid #ccc;">' + basic.toFixed(1) + '</td></tr>' +
+                  '<tr><td style="padding:7px 14px;font-size:12px;border-bottom:1px solid #ccc;">Basic Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:12px;border-bottom:1px solid #ccc;">' + basic.toFixed(2) + '</td></tr>' +
                   '<tr><td style="padding:7px 14px;font-size:12px;border-bottom:1px solid #ccc;">Round Off &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:12px;border-bottom:1px solid #ccc;">' + roundOffTxt + '</td></tr>' +
-                  '<tr><td style="padding:7px 14px;font-size:13px;font-weight:700;">Total Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:13px;font-weight:700;">' + totalAmt.toFixed(1) + '</td></tr>' +
+                  '<tr><td style="padding:7px 14px;font-size:13px;font-weight:700;">Total Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:13px;font-weight:700;">' + totalAmt.toFixed(2) + '</td></tr>' +
                 '</table>' +
               '</td>' +
             '</tr>' +
@@ -2239,7 +2239,7 @@
             ct(CX[3],y,COL[3],ROW_H,item.unit||'','normal',8,'C');
             ct(CX[4],y,COL[4],ROW_H,item.qty>0?(item.qtyDisplay||smartNum(item.qty)):'','normal',8,'R');
             ct(CX[5],y,COL[5],ROW_H,item.rate>0?(item.rateDisplay||smartNum(item.rate)):'','normal',8,'R');
-            ct(CX[6],y,COL[6],ROW_H,item.amount>0?item.amount.toFixed(1):'','normal',8,'R');
+            ct(CX[6],y,COL[6],ROW_H,item.amount>0?item.amount.toFixed(2):'','normal',8,'R');
             y += ROW_H;
           });
         }
@@ -2278,11 +2278,12 @@
 
     async function reprintInvoice(purchase, client) {
       const { jsPDF } = window.jspdf;
-      // 8 x 5.5in (203.2 x 139.7mm) — a bit smaller than exact half-A4 so
-      // there's manual print/cut margin when stacking two per A4 sheet.
-      // Margins are tightened (not the 180mm table width) to fit the narrower page.
-      const PW = 203.2, PH = 139.7, ML = 11.6, MR = 11.6, CW = PW - ML - MR;
-      const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'l' });
+      // Full portrait A4 page — matches how printers/copiers normally feed
+      // A4 paper, so it no longer prints rotated/sideways. The invoice
+      // content (same size as before) sits in the top half; the bottom
+      // half is left blank for a second copy, same manual print workflow.
+      const PW = 210, PH = 297, ML = 15, MR = 15, CW = PW - ML - MR;
+      const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'p' });
       doc.setDrawColor(0,0,0); doc.setTextColor(0,0,0);
 
       const clientName  = client.name  || '';
@@ -2334,7 +2335,7 @@
             case 2:txt=row.unit||'';al='C';break;
             case 3:txt=row.qty>0?(row.qtyDisplay||smartNum(row.qty)):'';al='R';break;
             case 4:txt=row.rate>0?(row.rateDisplay||smartNum(row.rate)):'';al='R';break;
-            case 5:txt=row.amount>0?row.amount.toFixed(1):'';al='R';break;
+            case 5:txt=row.amount>0?row.amount.toFixed(2):'';al='R';break;
           } cellText(CX[k],y,COL[k],ROW_H,txt,'normal',6.5,al); }
         } y+=ROW_H;
       }
@@ -2345,12 +2346,12 @@
       const wl=doc.splitTextToSize(amountInWords(grandTotal),104); doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(0,0,0); doc.text(wl,ML+2,y+4.2);
       doc.setLineWidth(0.3); doc.line(fsx,y,fsx,y+AH*3+1);
       doc.setFont('helvetica','normal'); doc.setFontSize(6.5);
-      doc.text('Basic Amount  :-',fsx+3,y+AH/2+1.3); doc.text(grandTotal.toFixed(1),ML+CW-2,y+AH/2+1.3,{align:'right'});
+      doc.text('Basic Amount  :-',fsx+3,y+AH/2+1.3); doc.text(grandTotal.toFixed(2),ML+CW-2,y+AH/2+1.3,{align:'right'});
       doc.setLineWidth(0.2); doc.line(fsx,y+AH,ML+CW,y+AH);
-      const rot=roundOff===0?'-':(roundOff>0?'+':'')+roundOff.toFixed(1);
+      const rot=roundOff===0?'-':(roundOff>0?'+':'')+roundOff.toFixed(2);
       doc.text('Round Off  :-',fsx+3,y+AH+AH/2+1.3); doc.text(rot,ML+CW-2,y+AH+AH/2+1.3,{align:'right'});
       doc.line(fsx,y+AH*2,ML+CW,y+AH*2);
-      doc.setFont('helvetica','bold'); doc.text('Total Amount  :-',fsx+3,y+AH*2+AH/2+1.3); doc.text(totalAmt.toFixed(1),ML+CW-2,y+AH*2+AH/2+1.3,{align:'right'});
+      doc.setFont('helvetica','bold'); doc.text('Total Amount  :-',fsx+3,y+AH*2+AH/2+1.3); doc.text(totalAmt.toFixed(2),ML+CW-2,y+AH*2+AH/2+1.3,{align:'right'});
       y+=AH*3+1; doc.setLineWidth(0.4); doc.line(ML,y,ML+CW,y);
       const remarkColW = fsx-ML-4;
       const gujNotice   = await buildGujaratiNoticeImage(remarkColW, 2.3);
@@ -2665,10 +2666,12 @@
     // ─────────────────────────────────────────────
     async function generateReceiptPDF(client, payment, remainingAfter) {
       const { jsPDF } = window.jspdf;
-      // 8 x 5.5in (203.2 x 139.7mm) — a bit smaller than exact half-A4 so
-      // there's manual print/cut margin when stacking two per A4 sheet.
-      const PW = 203.2, PH = 139.7;
-      const ML = 12, MR = 12;
+      // Full portrait A4 page — matches how printers/copiers normally feed
+      // A4 paper, so it no longer prints rotated/sideways. The receipt
+      // content (same size as before) sits in the top half; the bottom
+      // half is left blank for a second copy, same manual print workflow.
+      const PW = 210, PH = 297;
+      const ML = 15, MR = 15;
       const CW = PW - ML - MR;
 
       const C = {
@@ -2683,7 +2686,7 @@
         lineGray:   [209, 213, 219],
       };
 
-      const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'l' });
+      const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'p' });
       function fill(c)   { doc.setFillColor(...c); }
       function draw(c)   { doc.setDrawColor(...c); }
       function tcolor(c) { doc.setTextColor(...c); }
@@ -2806,8 +2809,9 @@
       tcolor(C.blueDark);
       doc.text('RADHE MATERIAL', sigX2, y + 3.5, { align: 'right' });
 
-      // ── Footer ──
-      const footY = PH - 8;
+      // ── Footer ── (anchored to the content, not the page bottom, since
+      // the page is now a full A4 with blank space below for a 2nd copy)
+      const footY = y + 8;
       draw(C.lineGray);
       doc.setLineWidth(0.3);
       doc.line(ML, footY, ML + CW, footY);
@@ -2842,14 +2846,16 @@
         const { jsPDF } = window.jspdf;
 
         // ── Page constants ──
-        // 8 x 5.5in (203.2 x 139.7mm) — a bit smaller than exact half-A4 so
-        // there's manual print/cut margin when stacking two per A4 sheet.
-        // Margins are tightened (not the 180mm table width) to fit the narrower page.
-        const PW = 203.2, PH = 139.7;
-        const ML = 11.6, MR = 11.6;
+        // Full portrait A4 page — matches how printers/copiers normally
+        // feed A4 paper, so it no longer prints rotated/sideways. The
+        // invoice content (same size as before) sits in the top half; the
+        // bottom half is left blank for a second copy, same manual print
+        // workflow.
+        const PW = 210, PH = 297;
+        const ML = 15, MR = 15;
         const CW = PW - ML - MR;
 
-        const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'l' });
+        const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'p' });
         doc.setDrawColor(0, 0, 0);
         doc.setTextColor(0, 0, 0);
 
@@ -3033,7 +3039,7 @@
                 case 2: txt = row.unit || ''; al = 'C'; break;
                 case 3: txt = row.qty > 0 ? (row.qtyDisplay || smartNum(row.qty)) : ''; al = 'R'; break;
                 case 4: txt = row.rate > 0 ? (row.rateDisplay || smartNum(row.rate)) : ''; al = 'R'; break;
-                case 5: txt = row.amount > 0 ? row.amount.toFixed(1) : ''; al = 'R'; break;
+                case 5: txt = row.amount > 0 ? row.amount.toFixed(2) : ''; al = 'R'; break;
               }
               cellText(CX[k], y, COL[k], ROW_H, txt, 'normal', 6.5, al);
             }
@@ -3075,12 +3081,12 @@
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(6.5);
         doc.text('Basic Amount  :-', footSplitX + 3, y + AMT_ROW_H/2 + 1.3);
-        doc.text(grandTotal.toFixed(1), ML + CW - 2, y + AMT_ROW_H/2 + 1.3, { align: 'right' });
+        doc.text(grandTotal.toFixed(2), ML + CW - 2, y + AMT_ROW_H/2 + 1.3, { align: 'right' });
         doc.setLineWidth(0.2);
         doc.line(footSplitX, y + AMT_ROW_H, ML + CW, y + AMT_ROW_H);
 
         // Round Off
-        const roundOffTxt = roundOff === 0 ? '-' : (roundOff > 0 ? '+' : '') + roundOff.toFixed(1);
+        const roundOffTxt = roundOff === 0 ? '-' : (roundOff > 0 ? '+' : '') + roundOff.toFixed(2);
         doc.text('Round Off  :-', footSplitX + 3, y + AMT_ROW_H + AMT_ROW_H/2 + 1.3);
         doc.text(roundOffTxt, ML + CW - 2, y + AMT_ROW_H + AMT_ROW_H/2 + 1.3, { align: 'right' });
         doc.line(footSplitX, y + AMT_ROW_H*2, ML + CW, y + AMT_ROW_H*2);
@@ -3088,7 +3094,7 @@
         // Total Amount
         doc.setFont('helvetica', 'bold');
         doc.text('Total Amount  :-', footSplitX + 3, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.3);
-        doc.text(totalAmt.toFixed(1), ML + CW - 2, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.3, { align: 'right' });
+        doc.text(totalAmt.toFixed(2), ML + CW - 2, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.3, { align: 'right' });
 
         y += footH + 1;
 
