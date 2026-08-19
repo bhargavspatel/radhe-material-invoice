@@ -1706,7 +1706,7 @@
     function getGujaratiNoticeLines(lineItems) {
       const hasJarkanOrDmc = (lineItems || []).some(isJarkanOrDmcItem);
       const content = hasJarkanOrDmc
-        ? [GUJ_LINE_MACHINE_CHECK, GUJ_LINE_CHINA_GUARANTEE, GUJ_LINE_PAYMENT_DAYS]
+        ? [GUJ_LINE_PAYMENT_DAYS]
         : [GUJ_LINE_COLOR_GUARANTEE, GUJ_LINE_MACHINE_CHECK, GUJ_LINE_CHINA_GUARANTEE, GUJ_LINE_PAYMENT_DAYS];
       return content.map(function (line, i) { return (i + 1) + '. ' + line; });
     }
@@ -3862,7 +3862,7 @@
     // ─────────────────────────────────────────────
     // Workspace unlock — fixed PIN gate
     // ─────────────────────────────────────────────
-    const CORRECT_PIN = '0987';
+    const CORRECT_PIN = '5253';
 
     function unlock() {
       const input = document.getElementById('code-input');
