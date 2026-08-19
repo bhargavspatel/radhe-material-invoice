@@ -2273,7 +2273,12 @@
       doc.text('Computer generated statement — RADHE MATERIAL. Contact us for any discrepancies.', PW/2, y+4, {align:'center'});
 
       const filename = (client.name||client.phone).replace(/\s+/g,'_')+'_Statement.pdf';
-      showPDFModal(doc, filename, null, 'Account Statement — '+(client.name||client.phone), null);
+      const stmtMsg = 'Hello ' + (client.name || 'there') + ', here is your account statement from RADHE MATERIAL' +
+        (rangeLabel ? ' for ' + rangeLabel : '') +
+        '.\nTotal outstanding: ' + pdfINR(outstanding) +
+        '.\nThank you!';
+      const stmtWA = buildWhatsAppURL(client.phone, stmtMsg);
+      showPDFModal(doc, filename, stmtWA, 'Account Statement — '+(client.name||client.phone), null);
     }
 
     async function reprintInvoice(purchase, client) {
@@ -2572,7 +2577,7 @@
               '</svg>' +
               'Send on WhatsApp' +
             (whatsappURL ? '</button>' : '</span>') +
-            (whatsappURL ? '<button class="btn-modal-share">&#8679;&nbsp; Share bill image</button>' : '') +
+            (billData ? '<button class="btn-modal-share">&#8679;&nbsp; Share bill image</button>' : '') +
           '</div>' +
         '</div>';
 
