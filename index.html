@@ -1687,15 +1687,35 @@
       setTimeout(resolve, 4000); // don't block PDF generation forever if offline
     });
 
+    // ── Gujarati notice content ──
+    // Line 1 (color guarantee) doesn't apply to JARKAN/DMC products, so it's
+    // left out whenever the items being printed include either — everything
+    // else always shows. Lines are renumbered 1..N based on what's included.
+    const GUJ_LINE_COLOR_GUARANTEE = 'માલ માં કોઈ પણ જાતની કલર ગેરંટી આવશે નહી.';
+    const GUJ_LINE_MACHINE_CHECK   = 'મશીન માં નાખતી વખતે ચેક કરી ને નાખવૂ પાછળ થી કોઈ દલીલ સાંભળવા માં આવશે નહી.';
+    const GUJ_LINE_CHINA_GUARANTEE = 'રોજ ગોલ્ડ, સિલ્વર, ગોલ્ડ બધી આઈટમ ચાઈના ઓરિજિનલ આવશે 100 % ગેરંટી.';
+    const GUJ_LINE_PAYMENT_DAYS    = 'જેટલા દિવસની વાત થઈ હોય તેટલા દિવસની અંદર પેમેન્ટ કરવાનુ રહશે, તેનાથી દિવસ પ્લસ થશે તો રેટ પ્લસ થશે.';
+
+    function isJarkanOrDmcItem(item) {
+      const s = ((item && item.service) || '').toUpperCase();
+      return s.indexOf('JARKAN') !== -1 || s.indexOf('DMC') !== -1;
+    }
+
+    // Pass the line items actually being printed (an invoice's lineItems, or
+    // a flattened list across a client's purchases for the receipt/statement).
+    function getGujaratiNoticeLines(lineItems) {
+      const hasJarkanOrDmc = (lineItems || []).some(isJarkanOrDmcItem);
+      const content = hasJarkanOrDmc
+        ? [GUJ_LINE_MACHINE_CHECK, GUJ_LINE_CHINA_GUARANTEE, GUJ_LINE_PAYMENT_DAYS]
+        : [GUJ_LINE_COLOR_GUARANTEE, GUJ_LINE_MACHINE_CHECK, GUJ_LINE_CHINA_GUARANTEE, GUJ_LINE_PAYMENT_DAYS];
+      return content.map(function (line, i) { return (i + 1) + '. ' + line; });
+    }
+
     // jsPDF's built-in fonts also have no Gujarati glyphs, so the notice
     // below is rendered with the browser's Gujarati font onto a canvas and
     // embedded as a PNG image instead of drawn with doc.text().
-    async function buildGujaratiNoticeImage(CW, maxFontMm) {
-      const lines = [
-        '1. માલ માં કોઈ પણ જાતની કલર ગેરંટી આવશે નહી.',
-        '2. મશીન માં નાખતી વખતે ચેક કરી ને નાખવૂ પાછળ થી કોઈ દલીલ સાંભળવા માં આવશે નહી.',
-        '3. રોજ ગોલ્ડ, સિલ્વર, ગોલ્ડ બધી આઈટમ ચાઈના ઓરિજિનલ આવશે 100 % ગેરંટી.'
-      ];
+    async function buildGujaratiNoticeImage(CW, maxFontMm, lines) {
+      lines = lines || getGujaratiNoticeLines();
       const scale   = 8; // px per mm — keeps the embedded PNG crisp
       const widthPx = Math.round(CW * scale);
       const padPx   = Math.round(1.2 * scale);
@@ -2265,7 +2285,8 @@
       doc.text('TOTAL OUTSTANDING :', ML+4, y+7);
       doc.text(pdfINR(outstanding), ML+CW-3, y+7, {align:'right'}); y += 13;
 
-      const gujNotice = await buildGujaratiNoticeImage(CW);
+      const stmtItems = [].concat.apply([], purchases.map(function (p) { return p.lineItems || []; }));
+      const gujNotice = await buildGujaratiNoticeImage(CW, undefined, getGujaratiNoticeLines(stmtItems));
       doc.addImage(gujNotice.dataUrl, 'PNG', ML, y + 2, CW, gujNotice.heightMm);
       y += gujNotice.heightMm + 8;
 
@@ -2358,8 +2379,9 @@
       doc.line(fsx,y+AH*2,ML+CW,y+AH*2);
       doc.setFont('helvetica','bold'); doc.text('Total Amount  :-',fsx+3,y+AH*2+AH/2+1.2); doc.text(totalAmt.toFixed(2),ML+CW-2,y+AH*2+AH/2+1.2,{align:'right'});
       y+=AH*3+1; doc.setLineWidth(0.4); doc.line(ML,y,ML+CW,y);
-      const gujNotice = await buildGujaratiNoticeImage(CW-4, 3.0);
-      const rH = Math.max(13, 8.3+gujNotice.heightMm+2.8);
+      const noticeLines = getGujaratiNoticeLines(lineItems);
+      const gujNotice = await buildGujaratiNoticeImage(CW-4, noticeLines.length > 3 ? 2.5 : 3.0, noticeLines);
+      const rH = Math.max(13, 8.3+gujNotice.heightMm+2);
       doc.setFont('helvetica','normal'); doc.setFontSize(5.5); doc.text('E&OE',ML+CW-2,y+3.7,{align:'right'}); doc.setFont('helvetica','bold'); doc.text('For RADHE MATERIAL',ML+CW-2,y+7.4,{align:'right'});
       doc.addImage(gujNotice.dataUrl,'PNG',ML+2,y+8.3,CW-4,gujNotice.heightMm);
       y+=rH; doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y); doc.line(ML,topY,ML,y); doc.line(ML+CW,topY,ML+CW,y);
@@ -2792,8 +2814,10 @@
       );
       y += 12;
 
-      // ── Gujarati notice ──
-      const gujNotice = await buildGujaratiNoticeImage(CW, 2.6);
+      // ── Gujarati notice ── (checked across this client's full purchase
+      // history, since a payment/receipt isn't tied to one specific invoice)
+      const receiptItems = [].concat.apply([], (client.purchases || []).map(function (p) { return p.lineItems || []; }));
+      const gujNotice = await buildGujaratiNoticeImage(CW, 2.6, getGujaratiNoticeLines(receiptItems));
       doc.addImage(gujNotice.dataUrl, 'PNG', ML, y, CW, gujNotice.heightMm);
       y += gujNotice.heightMm + 3;
 
@@ -3107,8 +3131,9 @@
         doc.setLineWidth(0.4);
         doc.line(ML, y, ML + CW, y);
 
-        const gujNotice = await buildGujaratiNoticeImage(CW - 4, 3.0);
-        const remarkH   = Math.max(13, 8.3 + gujNotice.heightMm + 2.8);
+        const noticeLines = getGujaratiNoticeLines(lineItems);
+        const gujNotice = await buildGujaratiNoticeImage(CW - 4, noticeLines.length > 3 ? 2.5 : 3.0, noticeLines);
+        const remarkH   = Math.max(13, 8.3 + gujNotice.heightMm + 2);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(5.5);
